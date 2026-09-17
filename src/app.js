@@ -194,7 +194,7 @@ function renderChatList() {
       unread = 0;
     }
 
-    const currentStreak = Storage.getMemberStreak(member.id, member.streak);
+    const currentStreak = Storage.getMemberStreak(member.id);
     const showFlame = currentStreak >= 3;
     const isSelected = isDesktopView() && state.activeMemberId === member.id;
     const displayName = getMemberDisplayName(member);
@@ -352,6 +352,31 @@ function renderContactsList() {
 }
 
 // =============================================================================
+// STREAK BADGE HELPER
+// =============================================================================
+function updateChatRoomStreakBadge(member) {
+  const chatRoomStreakBadge = getEl("chat-nav-streak");
+  if (!chatRoomStreakBadge || !member) return;
+
+  const streakData = Storage.getMemberStreakData(member.id);
+  const currentStreak = streakData.count;
+
+  if (currentStreak >= 3) {
+    chatRoomStreakBadge.className = "chat-room-streak-flame";
+    chatRoomStreakBadge.innerHTML = `🔥 ${currentStreak}`;
+    chatRoomStreakBadge.title = `Streak Api Aktif: ${currentStreak} Hari Berturut-turut!`;
+  } else if (currentStreak > 0) {
+    chatRoomStreakBadge.className = "chat-room-streak-progress";
+    chatRoomStreakBadge.innerHTML = `⚡ ${currentStreak}/3 Hari`;
+    chatRoomStreakBadge.title = `Streak: ${currentStreak}/3 Hari (Butuh ${3 - currentStreak} hari lagi untuk membuka Api 🔥)`;
+  } else {
+    chatRoomStreakBadge.className = "chat-room-streak-progress";
+    chatRoomStreakBadge.innerHTML = `⚡ 0/3 Hari`;
+    chatRoomStreakBadge.title = `Belum ada streak. Chat 3 hari berturut-turut untuk menyalakan Api 🔥`;
+  }
+}
+
+// =============================================================================
 // OPEN & MANAGE CHAT ROOM
 // =============================================================================
 function openChatRoom(memberId) {
@@ -372,7 +397,6 @@ function openChatRoom(memberId) {
   const chatRoomNavAvatar = getEl("chat-nav-avatar");
   const chatRoomNavStatus = getEl("chat-nav-status");
   const chatRoomPapBadge = getEl("chat-nav-pap");
-  const chatRoomStreakBadge = getEl("chat-nav-streak");
 
   if (chatRoomNavName) chatRoomNavName.textContent = displayName;
   if (chatRoomNavAvatar) {
@@ -389,17 +413,8 @@ function openChatRoom(memberId) {
   }
   if (chatRoomPapBadge) chatRoomPapBadge.innerHTML = `📸 PAP ${member.papsRemaining}/4`;
 
-  // Streak calculation
-  const currentStreak = Storage.getMemberStreak(member.id, member.streak);
-  if (chatRoomStreakBadge) {
-    if (currentStreak >= 3) {
-      chatRoomStreakBadge.className = "chat-room-streak-flame";
-      chatRoomStreakBadge.innerHTML = `🔥 ${currentStreak}`;
-    } else {
-      chatRoomStreakBadge.className = "chat-room-streak-progress";
-      chatRoomStreakBadge.innerHTML = `⚡ ${currentStreak}/3 Hari`;
-    }
-  }
+  // Streak calculation & badge display
+  updateChatRoomStreakBadge(member);
 
   renderChatMessages(member);
 
@@ -570,10 +585,12 @@ async function handleSendMessage() {
 
     // 3. Streak calculation safely
     try {
-      const streakResult = Storage.recordDailyChatStreak(member.id, member.streak);
+      const streakResult = Storage.recordDailyChatStreak(member.id);
+      updateChatRoomStreakBadge(member);
+      renderChatList();
       if (streakResult && streakResult.justUnlockedFlame) {
         soundEffects.playStreakUnlocked();
-        showToast(`Selamat! Streak 3 Hari berturut-turut tercapai! Mode Api 🔥 Aktif!`, "🔥");
+        showToast(`Selamat! Kamu dan ${getMemberDisplayName(member)} sudah aktif chatingan 3 hari berturut-turut! Mode Api 🔥 Aktif!`, "🔥");
       }
     } catch (err) {
       console.warn("Streak tracking error:", err);
@@ -617,7 +634,7 @@ async function handleSendMessage() {
       showToast(`⚠️ AI Error: ${aiErr.message}`, "⚠️");
       const rawName = userProfile?.name?.trim() || "";
       const userName = (rawName && rawName.toLowerCase() !== "fans jkt48") ? rawName : "kamu";
-      aiReplyText = `Hehe ${userName}, seru banget! Aku suka deh ngobrol sama kamu ✨ Tetap semangat yaa! 💖`;
+      aiReplyText = `Hehe ${userName}, seru banget! Aku suka deh ngobrol sama kamu. Tetap semangat yaa! ✨`;
     }
 
     // 6. Hide typing indicator before rendering reply
@@ -687,7 +704,7 @@ function handleRequestPap() {
 
   const papMsg = {
     id: `msg_pap_${Date.now()}`,
-    text: randomPhoto.title || `Foto PAP spesial dari ${getMemberDisplayName(member)} 📸✨`,
+    text: randomPhoto.title || `Foto PAP spesial dari ${getMemberDisplayName(member)} 📸`,
     isUser: false,
     time: timeStr,
     date: "HARI INI",
@@ -839,7 +856,7 @@ function openMemberInfoModal(memberId) {
 
   const displayName = getMemberDisplayName(member);
   const officialName = member.fullName || member.name;
-  const currentStreak = Storage.getMemberStreak(member.id, member.streak);
+  const currentStreak = Storage.getMemberStreak(member.id);
 
   const avatarEl = getEl("info-modal-avatar");
   const nameEl = getEl("info-modal-display-name");
@@ -866,9 +883,13 @@ function openMemberInfoModal(memberId) {
   if (teamEl) teamEl.textContent = `${member.team} • ${member.generation}`;
   if (birthEl) birthEl.textContent = `${member.birthDate} (Gol. ${member.bloodType})`;
   if (streakEl) {
-    streakEl.textContent = currentStreak >= 3 
-      ? `🔥 ${currentStreak} Hari Berturut-turut (Streak Api Menyala!)` 
-      : `⚡ ${currentStreak}/3 Hari (Butuh ${3 - currentStreak} hari lagi untuk menyalakan Api 🔥)`;
+    if (currentStreak >= 3) {
+      streakEl.innerHTML = `🔥 ${currentStreak} Hari Berturut-turut <span style="font-size:11px;color:#f97316;font-weight:700;">(Streak Api Menyala!)</span>`;
+    } else if (currentStreak > 0) {
+      streakEl.innerHTML = `⚡ ${currentStreak}/3 Hari <span style="font-size:11px;color:var(--ios-text-secondary);">(Butuh ${3 - currentStreak} hari lagi untuk buka Api 🔥)</span>`;
+    } else {
+      streakEl.innerHTML = `0 Hari <span style="font-size:11px;color:var(--ios-text-secondary);">(Chat 3 hari berturut-turut untuk buka Api 🔥)</span>`;
+    }
   }
 
   const editNameBtn = getEl("info-action-edit-name");

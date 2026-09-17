@@ -6,7 +6,7 @@ const STORAGE_KEYS = {
   USER_PROFILE: "xidol_user_profile_v1",
   THEME_MODE: "xidol_theme_mode",
   SOUND_ENABLED: "xidol_sound_enabled",
-  STREAKS_DATA: "xidol_streaks_daily_v2",
+  STREAKS_DATA: "xidol_streaks_daily_v3",
   CUSTOM_NAMES: "xidol_member_custom_names_v1"
 };
 
@@ -120,58 +120,115 @@ export const Storage = {
     localStorage.setItem(STORAGE_KEYS.SOUND_ENABLED, String(enabled));
   },
 
-  // TikTok Style 3-Day Streak Management
-  getMemberStreak(memberId, fallbackInitial = 0) {
+  // Helper to format date as "YYYY-MM-DD" in local timezone
+  _getTodayString(d = new Date()) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  },
+
+  // Helper to calculate difference in calendar days between two "YYYY-MM-DD" strings
+  _getDayDifference(dateStr1, dateStr2) {
+    if (!dateStr1 || !dateStr2) return 999;
+    const [y1, m1, d1] = dateStr1.split("-").map(Number);
+    const [y2, m2, d2] = dateStr2.split("-").map(Number);
+    const utc1 = Date.UTC(y1, m1 - 1, d1);
+    const utc2 = Date.UTC(y2, m2 - 1, d2);
+    return Math.floor((utc2 - utc1) / (1000 * 60 * 60 * 24));
+  },
+
+  // 3-Day Consecutive Chat Streak Feature
+  getMemberStreakData(memberId) {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.STREAKS_DATA);
       const streaks = data ? JSON.parse(data) : {};
-      if (streaks[memberId] !== undefined) {
-        return streaks[memberId].count;
+      const memberData = streaks[memberId];
+
+      if (!memberData || !memberData.lastDate || !memberData.count) {
+        return { count: 0, lastDate: null, hasFlame: false };
       }
-      return fallbackInitial;
+
+      const today = this._getTodayString();
+      const diffDays = this._getDayDifference(memberData.lastDate, today);
+
+      // If diffDays >= 2, user missed at least 1 full calendar day without chat.
+      // Streak is broken and resets back to 0!
+      if (diffDays >= 2) {
+        memberData.count = 0;
+        memberData.lastDate = null;
+        streaks[memberId] = memberData;
+        localStorage.setItem(STORAGE_KEYS.STREAKS_DATA, JSON.stringify(streaks));
+        return { count: 0, lastDate: null, hasFlame: false };
+      }
+
+      return {
+        count: memberData.count,
+        lastDate: memberData.lastDate,
+        hasFlame: memberData.count >= 3
+      };
     } catch {
-      return fallbackInitial;
+      return { count: 0, lastDate: null, hasFlame: false };
     }
   },
 
-  recordDailyChatStreak(memberId, initialStreak = 0) {
+  getMemberStreak(memberId, fallbackInitial = 0) {
+    const data = this.getMemberStreakData(memberId);
+    return data.count || fallbackInitial || 0;
+  },
+
+  recordDailyChatStreak(memberId) {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.STREAKS_DATA);
       const streaks = data ? JSON.parse(data) : {};
-      
-      const now = new Date();
-      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-      
-      let memberData = streaks[memberId] || { count: initialStreak, lastDate: null };
-      const prevCount = memberData.count;
+
+      const today = this._getTodayString();
+      let memberData = streaks[memberId] || { count: 0, lastDate: null };
+
+      // Check if previous streak was broken due to missed day (full day without chat)
+      if (memberData.lastDate) {
+        const diffDays = this._getDayDifference(memberData.lastDate, today);
+        if (diffDays >= 2) {
+          memberData.count = 0;
+          memberData.lastDate = null;
+        }
+      }
+
+      const prevCount = memberData.count || 0;
 
       if (!memberData.lastDate) {
-        memberData.count = Math.max(1, memberData.count);
-        memberData.lastDate = todayStr;
-      } else if (memberData.lastDate !== todayStr) {
-        const lastDate = new Date(memberData.lastDate);
-        const diffTime = Math.abs(now - lastDate);
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-        if (diffDays <= 1) {
+        // First day of chat interaction
+        memberData.count = 1;
+        memberData.lastDate = today;
+      } else {
+        const diffDays = this._getDayDifference(memberData.lastDate, today);
+        if (diffDays === 0) {
+          // Already chatted today: maintain current streak (does not increment multiple times on same day)
+        } else if (diffDays === 1) {
+          // Consecutive next calendar day! Increment streak
           memberData.count += 1;
+          memberData.lastDate = today;
         } else {
+          // Full day was skipped: restart streak at 1
           memberData.count = 1;
+          memberData.lastDate = today;
         }
-        memberData.lastDate = todayStr;
       }
 
       streaks[memberId] = memberData;
       localStorage.setItem(STORAGE_KEYS.STREAKS_DATA, JSON.stringify(streaks));
 
+      const newCount = memberData.count;
+      const justUnlockedFlame = prevCount < 3 && newCount >= 3;
+
       return {
-        streak: memberData.count,
-        hasFlame: memberData.count >= 3,
-        justUnlockedFlame: prevCount < 3 && memberData.count >= 3
+        streak: newCount,
+        hasFlame: newCount >= 3,
+        justUnlockedFlame
       };
     } catch (e) {
       console.error("Streak tracking error", e);
-      return { streak: initialStreak, hasFlame: initialStreak >= 3, justUnlockedFlame: false };
+      return { streak: 0, hasFlame: false, justUnlockedFlame: false };
     }
   },
 
