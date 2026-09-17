@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Private Message - JKT48</title>
+  <meta name="description" content="Aplikasi JKT48 Private Message resmi untuk mengobrol personal dengan member oshi JKT48" />
+  <link rel="icon" type="image/jpeg" href="assets/pm-logo.jpg" />
+  <link rel="apple-touch-icon" href="assets/pm-logo.jpg" />
+  <meta name="referrer" content="no-referrer" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="src/styles/ios-base.css?v=20260917_03" />
+  <link rel="stylesheet" href="src/styles/whatsapp.css?v=20260917_03" />
+  <link rel="stylesheet" href="src/styles/iphone-frame.css?v=20260917_03" />
+</head>
+<body>
+
+  <!-- Responsive WhatsApp App Root -->
+  <div class="wa-app-root">
+
+    <!-- ================================================================= -->
+    <!-- LEFT SIDEBAR: CHATS, STORIES, SETTINGS                            -->
+    <!-- ================================================================= -->
+    <aside class="wa-sidebar">
+
+      <!-- 1. DESKTOP SIDEBAR HEADER (Visible on Laptop >= 768px) -->
+      <header class="desktop-sidebar-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <img class="desktop-app-logo" src="assets/pm-logo.jpg" alt="JKT48 PM Logo" style="width: 36px; height: 36px; border-radius: 9px; object-fit: cover; box-shadow: 0 2px 6px rgba(0,0,0,0.15); flex-shrink: 0;" />
+          <div style="display: flex; flex-direction: column;">
+            <span style="font-weight: 700; font-size: 14px; color: var(--ios-text-primary); line-height: 1.2;">Private Message</span>
+            <span style="font-size: 11px; color: var(--ios-text-secondary); font-weight: 500;" id="desktop-profile-name">Fans JKT48</span>
+          </div>
+        </div>
+
+        <div class="desktop-header-actions">
+          <!-- Status / Stories -->
+          <button class="desktop-icon-btn" id="desktop-status-btn" title="Pembaruan Status">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <circle cx="12" cy="12" r="4"></circle>
+            </svg>
+          </button>
+
+          <!-- Contacts Directory -->
+          <button class="desktop-icon-btn" id="desktop-contacts-btn" title="Buku Kontak Member (58)">
+            👥
+          </button>
+
+          <!-- Chats List -->
+          <button class="desktop-icon-btn active" id="desktop-chats-btn" title="Daftar Chat">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </button>
+
+          <!-- Settings (Gemini & Groq AI) -->
+          <button class="desktop-icon-btn" id="desktop-settings-btn" title="Pengaturan AI & Profil">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+
+          <!-- Dark/Light Mode Toggle -->
+          <button class="desktop-icon-btn" id="theme-toggle-btn" title="Ganti Mode Gelap/Terang">
+            🌙
+          </button>
+        </div>
+      </header>
+
+      <!-- 2. MOBILE TOP STATUS BAR (Visible on Mobile < 768px) -->
+      <div class="ios-status-bar">
+        <span class="status-bar-time" id="status-time">10:58</span>
+        <div class="dynamic-island">
+          <div class="island-camera-dot"></div>
+          <div class="island-idol-badge" style="display: flex; align-items: center; gap: 4px;"><img src="assets/pm-logo.jpg" style="width: 12px; height: 12px; border-radius: 3px;" /> Private Message</div>
+        </div>
+        <div class="status-bar-icons">
+          <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor">
+            <rect x="0" y="8" width="3" height="3" rx="0.5"/>
+            <rect x="4.5" y="5.5" width="3" height="5.5" rx="0.5"/>
+            <rect x="9" y="3" width="3" height="8" rx="0.5"/>
+            <rect x="13.5" y="0" width="3" height="11" rx="0.5"/>
+          </svg>
+          <svg width="15" height="11" viewBox="0 0 15 11" fill="currentColor">
+            <path d="M7.5 10.5C8.05228 10.5 8.5 10.0523 8.5 9.5C8.5 8.94772 8.05228 8.5 7.5 8.5C6.94772 8.5 6.5 8.94772 6.5 9.5C6.5 10.0523 6.94772 10.5 7.5 10.5Z"/>
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M3.73708 6.73708C5.81423 4.65993 9.18577 4.65993 11.2629 6.73708L12.3235 5.67642C9.66014 3.01303 5.33986 3.01303 2.67642 5.67642L3.73708 6.73708Z"/>
+          </svg>
+          <div class="battery-icon"><div class="battery-level"></div></div>
+        </div>
+      </div>
+
+      <!-- VIEW A: CHATS LIST -->
+      <div class="app-screen" id="view-chats" style="display: flex;">
+        <header class="ios-nav-bar">
+          <button class="ios-nav-btn" id="chats-contacts-btn" style="display: flex; align-items: center; gap: 4px;">
+            <span>👥 Kontak</span>
+          </button>
+          <span class="ios-nav-title" style="visibility: hidden;">Private Message</span>
+          <div style="display: flex; gap: 6px;">
+            <button class="ios-nav-btn" id="chats-new-chat-btn" title="Pesan Baru">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+              </svg>
+            </button>
+            <button class="ios-nav-btn" onclick="document.getElementById('theme-toggle-btn').click()">
+              🌙
+            </button>
+          </div>
+        </header>
+
+        <div class="ios-large-title-container" style="display: flex; align-items: center; gap: 10px;">
+          <img src="assets/pm-logo.jpg" alt="JKT48 PM" style="width: 30px; height: 30px; border-radius: 8px; object-fit: cover; box-shadow: 0 2px 6px rgba(16, 185, 129, 0.2);" />
+          <h1 class="ios-large-title" style="margin: 0; font-size: 26px;">Private Message</h1>
+        </div>
+
+        <div class="ios-search-container">
+          <div class="ios-search-box">
+            <svg class="ios-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" class="ios-search-input" id="chat-search-input" placeholder="Cari nama oshi atau generasi..." />
+          </div>
+        </div>
+
+        <div class="filter-tags-scroll" id="filter-tags-wrap">
+          <div class="filter-tag-pill active" data-filter="all">Semua (58)</div>
+          <div class="filter-tag-pill" data-filter="team-love">Tim Love</div>
+          <div class="filter-tag-pill" data-filter="team-dream">Tim Dream</div>
+          <div class="filter-tag-pill" data-filter="team-passion">Tim Passion</div>
+          <div class="filter-tag-pill" data-filter="trainee">Siswi Pelatihan</div>
+          <div class="filter-tag-pill" data-filter="unread">Belum Dibaca</div>
+        </div>
+
+        <main class="chat-list-scroll" id="chat-list-items"></main>
+      </div>
+
+      <!-- VIEW CONTACTS: BUKU KONTAK MEMBER (58) -->
+      <div class="app-screen" id="view-contacts" style="display: none;">
+        <header class="ios-nav-bar">
+          <button class="ios-nav-btn" id="back-to-chats-from-contacts">‹ Chats</button>
+          <span class="ios-nav-title">Kontak Member</span>
+          <div style="width: 40px;"></div>
+        </header>
+
+        <div class="ios-large-title-container">
+          <h1 class="ios-large-title">Kontak (58)</h1>
+        </div>
+
+        <div class="ios-search-container">
+          <div class="ios-search-box">
+            <svg class="ios-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" class="ios-search-input" id="contact-search-input" placeholder="Cari nama oshi, nama kustom, tim..." />
+          </div>
+        </div>
+
+        <div class="filter-tags-scroll" id="contacts-filter-tags-wrap">
+          <div class="filter-tag-pill active" data-filter="all">Semua (58)</div>
+          <div class="filter-tag-pill" data-filter="custom-only">⭐ Nama Kustom</div>
+          <div class="filter-tag-pill" data-filter="team-love">Tim Love</div>
+          <div class="filter-tag-pill" data-filter="team-dream">Tim Dream</div>
+          <div class="filter-tag-pill" data-filter="team-passion">Tim Passion</div>
+          <div class="filter-tag-pill" data-filter="trainee">Siswi Pelatihan</div>
+        </div>
+
+        <main class="chat-list-scroll" id="contacts-list-items"></main>
+      </div>
+
+      <!-- VIEW B: UPDATES / STORIES TAB -->
+      <div class="app-screen" id="view-updates" style="display: none;">
+        <header class="ios-nav-bar">
+          <button class="ios-nav-btn" id="back-to-chats-from-updates">‹ Kembali</button>
+          <span class="ios-nav-title">Pembaruan</span>
+          <div style="width: 40px;"></div>
+        </header>
+
+        <div class="ios-large-title-container">
+          <h1 class="ios-large-title">Pembaruan</h1>
+        </div>
+
+        <div class="status-section">
+          <div class="status-my-card">
+            <div class="status-my-avatar-wrap">
+              <img class="status-my-avatar" id="my-status-avatar" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%2310B981'/%3E%3Ccircle cx='50' cy='38' r='20' fill='%23ffffff'/%3E%3Cpath d='M20,88 C20,68 35,60 50,60 C65,60 80,68 80,88 Z' fill='%23ffffff'/%3E%3C/svg%3E" alt="Status Saya" />
+              <div class="status-plus-badge">+</div>
+            </div>
+            <div class="chat-item-content">
+              <div class="chat-item-name">Status Saya</div>
+              <div class="chat-item-preview">Ketuk untuk menambahkan status baru</div>
+            </div>
+          </div>
+
+          <div class="status-section-header">Pembaruan Terkini Member</div>
+          <div id="updates-list-container"></div>
+        </div>
+      </div>
+
+      <!-- VIEW C: SETTINGS TAB (GEMINI & GROQ AI, PROFIL) -->
+      <div class="app-screen" id="view-settings" style="display: none;">
+        <header class="ios-nav-bar">
+          <button class="ios-nav-btn" id="back-to-chats-from-settings">‹ Kembali</button>
+          <span class="ios-nav-title">Pengaturan</span>
+          <div style="width: 40px;"></div>
+        </header>
+
+        <div class="ios-grouped-list">
+          
+          <!-- Tutorial Card -->
+          <div class="ios-group-title">Panduan Dapatkan API Key</div>
+          <div class="ios-group-card" style="padding: 14px 16px; background: rgba(59, 130, 246, 0.06); border: 1px solid rgba(59, 130, 246, 0.15);">
+            <div style="font-weight: 700; font-size: 14px; color: var(--ios-text-primary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+              <span id="tutorial-icon">✨</span> <span id="tutorial-title">Cara Dapatkan Google Gemini API Key (Gratis):</span>
+            </div>
+            
+            <div id="tutorial-gemini-content" style="font-size: 13px; color: var(--ios-text-secondary); line-height: 1.6;">
+              <p>1. Buka <strong><a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--ios-blue); text-decoration: underline;">aistudio.google.com/app/apikey ↗</a></strong></p>
+              <p>2. Login dengan akun <strong>Google / Gmail</strong> Anda.</p>
+              <p>3. Klik tombol <strong>"Create API key"</strong> (atau <em>Get API key</em>).</p>
+              <p>4. Pilih <em>"Create API key in new project"</em> lalu salin kuncinya (diawali <strong>AIzaSy...</strong>).</p>
+              <p>5. Tempelkan kuncinya pada kolom di bawah lalu klik <em>Simpan & Aktifkan</em>.</p>
+            </div>
+
+            <div id="tutorial-groq-content" style="display: none; font-size: 13px; color: var(--ios-text-secondary); line-height: 1.6;">
+              <p>1. Buka <strong><a href="https://console.groq.com/keys" target="_blank" style="color: var(--ios-blue); text-decoration: underline;">console.groq.com/keys ↗</a></strong></p>
+              <p>2. Login atau daftar dengan akun Google/GitHub.</p>
+              <p>3. Klik tombol <strong>"Create API Key"</strong> dan salin kuncinya (diawali <strong>gsk_...</strong>).</p>
+              <p>4. Tempel kuncinya pada kolom di bawah lalu klik <em>Simpan & Aktifkan</em>.</p>
+            </div>
+          </div>
+
+          <!-- AI Configuration -->
+          <div class="ios-group-title" style="margin-top: 14px;">Integrasi Engine AI (Gemini / Groq)</div>
+          <div class="ios-group-card">
+            <div class="ios-cell">
+              <div class="ios-cell-icon" style="background-color: #4285F4;">✨</div>
+              <div class="ios-cell-content">
+                <div class="ios-cell-title">Penyedia AI (Provider)</div>
+                <div class="ios-cell-subtitle">Pilih Gemini API atau Groq Cloud API</div>
+                <select class="ios-select" id="ai-provider-select">
+                  <option value="gemini">Google Gemini API (Direkomendasikan - Nyambung & Ekspresif)</option>
+                  <option value="groq">Groq Cloud API (Llama, DeepSeek, Qwen, GPT-OSS)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="ios-cell">
+              <div class="ios-cell-icon" style="background-color: #6366F1;">🔑</div>
+              <div class="ios-cell-content">
+                <div class="ios-cell-title" id="api-key-label">API Key (Gemini / Groq)</div>
+                <div class="ios-cell-subtitle" id="api-key-subtext" style="margin-bottom: 6px;">Masukkan key Gemini (AIzaSy...) atau Groq (gsk_...)</div>
+                <input type="password" class="ios-input-text" id="groq-api-key-input" placeholder="AIzaSy... / gsk_..." />
+              </div>
+            </div>
+
+            <div class="ios-cell">
+              <div class="ios-cell-icon" style="background-color: #3B82F6;">🤖</div>
+              <div class="ios-cell-content">
+                <div class="ios-cell-title">Model Kecerdasan</div>
+                <div class="ios-cell-subtitle">Model yang digunakan oleh idol</div>
+                <select class="ios-select" id="groq-model-select"></select>
+              </div>
+            </div>
+
+            <div class="ios-cell" style="flex-direction: column; align-items: stretch; gap: 8px;">
+              <div id="test-connection-result" style="font-size: 13px; font-weight: 500; min-height: 18px;"></div>
+              <div style="display: flex; gap: 8px;">
+                <button class="ios-btn-secondary" id="test-connection-btn" style="flex: 1;">⚡ Tes Koneksi</button>
+                <button class="ios-btn-primary" id="save-settings-btn" style="flex: 1;">Simpan & Aktifkan</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- User Profile -->
+          <div class="ios-group-title">Profil Pengguna (Fans)</div>
+          <div class="ios-group-card">
+            <div class="ios-cell">
+              <div class="ios-cell-icon" style="background-color: #EC4899;">👤</div>
+              <div class="ios-cell-content">
+                <div class="ios-cell-title">Nama Panggilan</div>
+                <input type="text" class="ios-input-text" id="profile-name-input" placeholder="Nama yang dipanggil idol" />
+              </div>
+            </div>
+
+            <div class="ios-cell">
+              <div class="ios-cell-icon" style="background-color: #8B5CF6;">⚧</div>
+              <div class="ios-cell-content">
+                <div class="ios-cell-title">Gender</div>
+                <select class="ios-select" id="profile-gender-select">
+                  <option value="Belum disetel">Belum disetel</option>
+                  <option value="Laki-laki">Laki-laki</option>
+                  <option value="Perempuan">Perempuan</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="ios-cell">
+              <div class="ios-cell-icon" style="background-color: #10B981;">💬</div>
+              <div class="ios-cell-content">
+                <div class="ios-cell-title">Info / Status Publik</div>
+                <input type="text" class="ios-input-text" id="profile-status-input" placeholder="Status Anda yang terlihat idol" />
+              </div>
+            </div>
+
+            <div class="ios-cell">
+              <div class="ios-cell-icon" style="background-color: #F59E0B;">📍</div>
+              <div class="ios-cell-content">
+                <div class="ios-cell-title">Kota / Domisili</div>
+                <input type="text" class="ios-input-text" id="profile-city-input" placeholder="Contoh: Jakarta / Surabaya" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Danger zone -->
+          <div class="ios-group-title">Manajemen Obrolan</div>
+          <div class="ios-group-card">
+            <div class="ios-cell">
+              <button class="ios-btn-danger" id="clear-all-chats-btn">🗑️ Hapus Semua Riwayat Chat</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. MOBILE BOTTOM TAB BAR (Visible on Mobile < 768px) -->
+      <nav class="ios-tab-bar">
+        <button class="ios-tab-item" id="tab-updates-btn">
+          <div class="ios-tab-icon-wrap">
+            <svg class="ios-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <circle cx="12" cy="12" r="4"></circle>
+            </svg>
+          </div>
+          <span>Pembaruan</span>
+        </button>
+
+        <button class="ios-tab-item" id="tab-calls-btn" onclick="alert('Fitur Panggilan Suara & Video Idol')">
+          <div class="ios-tab-icon-wrap">
+            <svg class="ios-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+            </svg>
+          </div>
+          <span>Panggilan</span>
+        </button>
+
+        <button class="ios-tab-item active" id="tab-chats-btn">
+          <div class="ios-tab-icon-wrap">
+            <svg class="ios-tab-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
+            </svg>
+            <div class="ios-tab-badge" id="tab-unread-badge">18</div>
+          </div>
+          <span>Chat</span>
+        </button>
+
+        <button class="ios-tab-item" id="tab-settings-btn">
+          <div class="ios-tab-icon-wrap">
+            <svg class="ios-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </div>
+          <span>Pengaturan</span>
+        </button>
+      </nav>
+
+      <!-- iOS Home Indicator -->
+      <div class="ios-home-indicator-wrap">
+        <div class="ios-home-indicator"></div>
+      </div>
+    </aside>
+
+    <!-- ================================================================= -->
+    <!-- RIGHT MAIN PANEL: ACTIVE CHAT ROOM                                -->
+    <!-- ================================================================= -->
+    <main class="wa-main-panel" id="wa-main-panel">
+
+      <!-- Desktop Empty Splash Screen -->
+      <div class="desktop-empty-placeholder" id="desktop-empty-placeholder" style="display: none;">
+        <img src="assets/pm-logo.jpg" alt="JKT48 Private Message" class="desktop-empty-logo" style="width: 140px; height: 140px; border-radius: 30px; margin-bottom: 24px; box-shadow: 0 12px 30px rgba(16, 185, 129, 0.25); object-fit: cover;" />
+        <h2 class="desktop-empty-title" style="font-weight: 700; letter-spacing: -0.5px;">JKT48 Private Message</h2>
+        <p class="desktop-empty-desc">
+          Kirim dan terima pesan personal eksklusif dari member oshi JKT48 secara real-time dengan kecerdasan persona AI, request foto kegiatan, dan bangun streak harianmu! 🔥
+        </p>
+        <div class="desktop-empty-badge">
+          🔒 Terhubung langsung dengan Google Gemini AI / Groq Cloud
+        </div>
+      </div>
+
+      <!-- ACTIVE CHAT ROOM -->
+      <div class="chat-room-screen" id="chat-room-screen" style="display: flex;">
+        
+        <!-- Header -->
+        <header class="chat-room-nav">
+          <button class="chat-room-back-btn" id="chat-back-btn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+            <span id="chat-back-unread-text">18</span>
+          </button>
+
+          <div class="chat-room-header-profile" id="chat-header-profile-click">
+            <img class="chat-room-nav-avatar" id="chat-nav-avatar" src="" alt="Avatar" />
+            <div class="chat-room-nav-info">
+              <div class="chat-room-nav-name" id="chat-nav-name">Freya Jayawardana</div>
+              <div class="chat-room-nav-status" id="chat-nav-status">Online</div>
+            </div>
+          </div>
+
+          <div class="chat-room-nav-actions">
+            <div class="chat-room-pap-badge" id="chat-nav-pap">📸 PAP 4/4</div>
+            <div class="chat-room-streak-flame" id="chat-nav-streak">🔥 3</div>
+          </div>
+        </header>
+
+        <!-- Chat Gemini Status / Setup Banner -->
+        <div class="chat-gemini-banner" id="chat-gemini-banner" style="display: none;">
+          <div class="chat-gemini-banner-info">
+            <span class="chat-gemini-sparkle">✨</span>
+            <span class="chat-gemini-text">Mode Offline. Masukkan <strong>Gemini API Key</strong> agar chat pintar, ekspresif & nyambung real-time!</span>
+          </div>
+          <button class="chat-gemini-banner-btn" id="btn-setup-gemini">Pasang Key 🔑</button>
+        </div>
+
+        <!-- Messages Area -->
+        <div class="chat-messages-area" id="chat-messages-area"></div>
+
+        <!-- Bottom Input Bar -->
+        <footer class="chat-input-bar">
+          <button class="chat-action-btn" id="chat-plus-btn" title="Lampiran">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
+
+          <div class="chat-input-field-wrap">
+            <textarea class="chat-input-textarea" id="chat-input-text" rows="1" placeholder="Ketik pesan..."></textarea>
+          </div>
+
+          <button class="chat-action-btn" id="chat-camera-btn" title="Minta PAP Idol">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <circle cx="12" cy="13" r="4"></circle>
+            </svg>
+          </button>
+
+          <button class="chat-send-btn" id="chat-send-btn" title="Kirim Pesan">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+            </svg>
+          </button>
+        </footer>
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- FULLSCREEN STORY VIEWER MODAL -->
+  <div class="story-viewer-modal" id="story-viewer-modal" style="display: none;">
+    <div class="story-progress-container" id="story-progress-wrap"></div>
+
+    <div class="story-header">
+      <div class="story-user-info">
+        <img class="story-avatar" id="story-viewer-avatar" src="" alt="Story Avatar" />
+        <div>
+          <div class="story-name" id="story-viewer-name">Member Name</div>
+          <div class="story-time" id="story-viewer-time">09:15</div>
+        </div>
+      </div>
+      <button class="story-close-btn" id="story-close-btn">✕</button>
+    </div>
+
+    <div class="story-image-wrap">
+      <img class="story-full-img" id="story-viewer-img" src="" alt="Story Image" />
+    </div>
+
+    <div class="story-caption-box" id="story-viewer-caption">Caption status...</div>
+
+    <div class="story-footer-reply">
+      <input type="text" class="story-reply-input" id="story-reply-input" placeholder="Kirim balasan pesan..." />
+      <button class="chat-send-btn" id="story-reply-send-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL: EDIT / SIMPAN NAMA KONTAK KUSTOM -->
+  <div class="ios-modal-overlay" id="edit-contact-modal" style="display: none;">
+    <div class="ios-modal-card">
+      <div class="ios-modal-header">
+        <h3 class="ios-modal-title">Simpan Nama Kontak</h3>
+        <button class="ios-modal-close-btn" id="close-edit-contact-modal">✕</button>
+      </div>
+
+      <div class="ios-modal-body">
+        <div class="edit-contact-preview-wrap">
+          <img class="edit-contact-avatar" id="edit-contact-avatar" src="" alt="Avatar" />
+          <div class="edit-contact-member-info">
+            <div class="edit-contact-official-name" id="edit-contact-official-name">Nama Member JKT48</div>
+            <div class="edit-contact-team-badge" id="edit-contact-team-badge">Tim Love • Generasi 11</div>
+          </div>
+        </div>
+
+        <div class="ios-input-group" style="margin-top: 16px;">
+          <label class="ios-input-label" for="custom-contact-name-input">Nama Panggilan Kustom (Tersimpan):</label>
+          <div style="position: relative;">
+            <input type="text" class="ios-input-text" id="custom-contact-name-input" placeholder="Contoh: Oshi Kesayangan 🥰, Freya Sayang..." maxlength="40" />
+            <button type="button" class="clear-input-btn" id="clear-custom-name-input" title="Hapus">✕</button>
+          </div>
+          <div class="ios-input-hint">Nama ini akan tampil di seluruh obrolan Private Message & daftar kontak Anda.</div>
+        </div>
+
+        <div class="edit-contact-suggestions" id="edit-contact-suggestions">
+          <div class="suggestion-chip" data-template="❤️ My Oshi {name}">❤️ My Oshi</div>
+          <div class="suggestion-chip" data-template="✨ {name} Cantik">✨ Cantik</div>
+          <div class="suggestion-chip" data-template="💖 {name} JKT48">💖 JKT48</div>
+          <div class="suggestion-chip" data-template="🌸 Oshi {name}">🌸 Oshi</div>
+        </div>
+      </div>
+
+      <div class="ios-modal-actions">
+        <button class="ios-btn-secondary" id="reset-contact-name-btn" title="Kembalikan ke nama resmi">🔄 Reset Nama Asli</button>
+        <button class="ios-btn-primary" id="save-contact-name-btn">💾 Simpan Nama</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: INFO PROFIL MEMBER & AKSI -->
+  <div class="ios-modal-overlay" id="member-info-modal" style="display: none;">
+    <div class="ios-modal-card info-modal-card">
+      <div class="ios-modal-header">
+        <h3 class="ios-modal-title">Info Kontak</h3>
+        <button class="ios-modal-close-btn" id="close-member-info-modal">✕</button>
+      </div>
+
+      <div class="member-info-hero">
+        <img class="member-info-hero-avatar" id="info-modal-avatar" src="" alt="Avatar" />
+        <h2 class="member-info-display-name" id="info-modal-display-name">Freya Jayawardana</h2>
+        <div class="member-info-official-sub" id="info-modal-official-sub">Nama Resmi: Raden Rara Freyanashifa</div>
+        
+        <div class="member-info-quick-actions">
+          <button class="quick-action-btn" id="info-action-edit-name">
+            <span class="quick-action-icon">✏️</span>
+            <span>Ubah Nama</span>
+          </button>
+          <button class="quick-action-btn" id="info-action-request-pap">
+            <span class="quick-action-icon">📸</span>
+            <span>Minta PAP</span>
+          </button>
+          <button class="quick-action-btn" id="info-action-clear-chat">
+            <span class="quick-action-icon">🗑️</span>
+            <span>Hapus Chat</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="member-info-details-list">
+        <div class="info-detail-row">
+          <span class="info-detail-label">Jikoshoukai / Bio</span>
+          <span class="info-detail-value" id="info-modal-bio">"Gadis koleris yang suka berimajinasi..."</span>
+        </div>
+        <div class="info-detail-row">
+          <span class="info-detail-label">Tim / Status</span>
+          <span class="info-detail-value" id="info-modal-team">Tim Dream • Generasi 7</span>
+        </div>
+        <div class="info-detail-row">
+          <span class="info-detail-label">Tanggal Lahir</span>
+          <span class="info-detail-value" id="info-modal-birth">13 Februari 2006</span>
+        </div>
+        <div class="info-detail-row">
+          <span class="info-detail-label">Streak Chat</span>
+          <span class="info-detail-value" id="info-modal-streak">🔥 3 Hari Berturut-turut</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Modules -->
+  <script type="module" src="src/app.js?v=20260917_09"></script>
+</body>
+</html>

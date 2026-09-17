@@ -1,0 +1,273 @@
+/* Responsive Layout: WhatsApp Desktop (Split-screen 2 Kolom) vs WhatsApp Mobile (iOS Native) */
+
+:root {
+  --wa-desktop-sidebar-width: 420px;
+  --wa-desktop-header-bg: #F0F2F5;
+  --wa-desktop-border: #E9EDEF;
+  --wa-desktop-chat-bg: #EFEAE2;
+}
+
+[data-theme="dark"] {
+  --wa-desktop-header-bg: #202C33;
+  --wa-desktop-border: #222D34;
+  --wa-desktop-chat-bg: #0B141A;
+}
+
+/* Master Container */
+.wa-app-root {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+  background-color: var(--ios-bg);
+  position: relative;
+}
+
+/* ========================================================================== */
+/* DESKTOP / LAPTOP LAYOUT (Screen Width >= 768px - WhatsApp Web / Desktop)   */
+/* ========================================================================== */
+@media (min-width: 768px) {
+  body {
+    background: #111B21;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    margin: 0;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  .wa-app-root {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: var(--wa-desktop-sidebar-width) 1fr;
+    background-color: var(--ios-bg);
+    overflow: hidden;
+  }
+
+  /* Left Sidebar (Desktop Chats / Status / Settings) */
+  .wa-sidebar {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--ios-separator-light);
+    background-color: var(--ios-bg);
+    position: relative;
+    z-index: 10;
+    overflow: hidden;
+  }
+
+  /* Desktop Top Header inside Sidebar */
+  .desktop-sidebar-header {
+    background-color: var(--wa-desktop-header-bg);
+    padding: 10px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 60px;
+    border-bottom: 1px solid var(--ios-separator-light);
+    flex-shrink: 0;
+  }
+
+  .desktop-user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    cursor: pointer;
+  }
+
+  .desktop-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .desktop-icon-btn {
+    background: none;
+    border: none;
+    color: var(--ios-text-secondary);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, background-color 0.15s;
+    font-size: 16px;
+  }
+
+  .desktop-icon-btn:hover {
+    color: var(--ios-text-primary);
+    background-color: rgba(118, 118, 128, 0.1);
+  }
+
+  .desktop-icon-btn.active {
+    color: var(--ios-tint);
+  }
+
+  /* Right Main Content (Active Chat or Empty Placeholder) */
+  .wa-main-panel {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--wa-desktop-chat-bg);
+    overflow: hidden;
+  }
+
+  /* Empty Placeholder when no chat is selected on Desktop */
+  .desktop-empty-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    padding: 40px;
+    text-align: center;
+    background-color: var(--ios-grouped-bg);
+    border-bottom: 6px solid var(--ios-wa-badge);
+  }
+
+  .desktop-empty-graphic {
+    width: 160px;
+    height: 160px;
+    margin-bottom: 24px;
+    opacity: 0.85;
+  }
+
+  .desktop-empty-title {
+    font-size: 26px;
+    font-weight: 400;
+    color: var(--ios-text-primary);
+    margin-bottom: 10px;
+    letter-spacing: -0.3px;
+  }
+
+  .desktop-empty-desc {
+    font-size: 14px;
+    color: var(--ios-text-secondary);
+    max-width: 480px;
+    line-height: 1.6;
+    margin-bottom: 20px;
+  }
+
+  .desktop-empty-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: rgba(37, 211, 102, 0.12);
+    color: #15803D;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 20px;
+  }
+
+  [data-theme="dark"] .desktop-empty-badge {
+    background: rgba(37, 211, 102, 0.2);
+    color: #4ADE80;
+  }
+
+  /* Chat Room on Desktop: fills 100% of the right column */
+  .chat-room-screen {
+    position: relative !important;
+    animation: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    z-index: 5 !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    left: 0 !important;
+    top: 0 !important;
+  }
+
+  .chat-room-nav {
+    width: 100%;
+  }
+
+  .chat-messages-area {
+    width: 100%;
+  }
+
+  .chat-input-bar {
+    width: 100%;
+  }
+
+  /* Hide mobile elements on desktop */
+  .ios-status-bar,
+  .dynamic-island,
+  .ios-home-indicator-wrap,
+  .chat-room-back-btn,
+  .ios-tab-bar,
+  .ios-large-title-container {
+    display: none !important;
+  }
+
+  #view-chats .ios-nav-bar {
+    display: none !important;
+  }
+}
+
+/* ========================================================================== */
+/* MOBILE LAYOUT (Screen Width < 768px - iPhone / WhatsApp iOS Native)        */
+/* ========================================================================== */
+@media (max-width: 767px) {
+  body {
+    background: var(--ios-bg);
+  }
+
+  .wa-app-root {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .wa-sidebar {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .desktop-sidebar-header,
+  .desktop-empty-placeholder {
+    display: none !important;
+  }
+
+  .wa-main-panel {
+    display: none;
+  }
+
+  /* Mobile Fullscreen Modal */
+  .chat-room-screen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 200 !important;
+  }
+
+  .chat-room-back-btn {
+    display: flex !important;
+  }
+
+  .ios-tab-bar {
+    display: flex !important;
+  }
+}

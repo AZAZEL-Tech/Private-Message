@@ -1,0 +1,143 @@
+/* iOS Base System Tokens & Typography */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* iOS WhatsApp Light Mode Colors */
+  --ios-bg: #FFFFFF;
+  --ios-grouped-bg: #F2F2F7;
+  --ios-secondary-grouped-bg: #FFFFFF;
+  --ios-nav-bg: rgba(247, 247, 247, 0.88);
+  --ios-nav-border: rgba(0, 0, 0, 0.12);
+  --ios-tab-bg: rgba(247, 247, 247, 0.94);
+  --ios-tab-border: rgba(0, 0, 0, 0.15);
+  
+  --ios-blue: #007AFF;
+  --ios-green: #25D366;
+  --ios-wa-green: #00A884;
+  --ios-wa-badge: #25D366;
+  --ios-tint: #007AFF;
+  --ios-pink: #FF2D55;
+  --ios-purple: #AF52DE;
+  
+  --ios-text-primary: #000000;
+  --ios-text-secondary: #8E8E93;
+  --ios-text-tertiary: #C7C7CC;
+  
+  --ios-bubble-outgoing: #D9FDD3;
+  --ios-bubble-incoming: #FFFFFF;
+  --ios-bubble-text: #111B21;
+  --ios-bubble-time: #667781;
+  --ios-bubble-tick-read: #53BDEB;
+  --ios-bubble-shadow: 0 1px 1.5px rgba(11, 20, 26, 0.13);
+  
+  --ios-input-bg: #FFFFFF;
+  --ios-input-bar-bg: #F0F2F5;
+  --ios-input-border: #E0E0E0;
+  
+  --ios-separator: #C6C6C8;
+  --ios-separator-light: rgba(60, 60, 67, 0.15);
+  
+  --ios-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Plus Jakarta Sans", sans-serif;
+  
+  --ios-radius-sm: 8px;
+  --ios-radius-md: 12px;
+  --ios-radius-lg: 16px;
+  --ios-radius-xl: 24px;
+  --ios-radius-bubble: 17px;
+  
+  --ios-safe-top: env(safe-area-inset-top, 0px);
+  --ios-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+[data-theme="dark"] {
+  /* iOS WhatsApp Midnight Dark Mode Colors */
+  --ios-bg: #0B141A;
+  --ios-grouped-bg: #111B21;
+  --ios-secondary-grouped-bg: #202C33;
+  --ios-nav-bg: rgba(17, 27, 33, 0.88);
+  --ios-nav-border: rgba(255, 255, 255, 0.08);
+  --ios-tab-bg: rgba(17, 27, 33, 0.94);
+  --ios-tab-border: rgba(255, 255, 255, 0.08);
+  
+  --ios-text-primary: #E9EDEF;
+  --ios-text-secondary: #8696A0;
+  --ios-text-tertiary: #667781;
+  
+  --ios-bubble-outgoing: #005C4B;
+  --ios-bubble-incoming: #202C33;
+  --ios-bubble-text: #E9EDEF;
+  --ios-bubble-time: #8696A0;
+  --ios-bubble-tick-read: #53BDEB;
+  --ios-bubble-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.25);
+  
+  --ios-input-bg: #2A3942;
+  --ios-input-bar-bg: #202C33;
+  --ios-input-border: #374248;
+  
+  --ios-separator: rgba(255, 255, 255, 0.1);
+  --ios-separator-light: rgba(255, 255, 255, 0.06);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(118, 118, 128, 0.3) transparent;
+}
+
+/* Custom Slim Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(118, 118, 128, 0.28);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(118, 118, 128, 0.5);
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--ios-font);
+  color: var(--ios-text-primary);
+  background-color: #0F172A;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+input, textarea, select {
+  font-family: inherit;
+}
+
+/* Animations */
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slideOutRight {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes bounceDot {
+  0%, 80%, 100% { transform: scale(0); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
