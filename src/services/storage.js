@@ -39,9 +39,16 @@ export const Storage = {
     localStorage.setItem(STORAGE_KEYS.AI_PROVIDER, provider);
   },
 
-  getSelectedModel() {
+  getSelectedModel(provider) {
     const model = localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL);
-    if (!model || model.includes("1.5-flash") || model.includes("2.0-flash") || model === "gemini-1.5-pro") {
+    const prov = provider || this.getAiProvider();
+    if (prov === "groq") {
+      if (!model || model.startsWith("gemini") || model.includes("llama-3.3-70b") || model.includes("llama-3.1-8b")) {
+        return "openai/gpt-oss-120b";
+      }
+      return model;
+    }
+    if (!model || !model.startsWith("gemini") || model.includes("1.5-flash") || model.includes("2.0-flash") || model === "gemini-1.5-pro") {
       return "gemini-3.6-flash";
     }
     return model;

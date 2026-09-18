@@ -4,21 +4,54 @@ const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const GEMINI_ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 /**
+ * Sanitizes idol response to remove any model thinking artifacts, meta leaks, or asterisk roleplay:
+ * - Strips <think>...</think> tags from reasoning models
+ * - Strips parenthetical meta leaks like "(oops, satu emoji aja)"
+ * - Strips roleplay asterisks like *senyum manis*
+ * - Normalizes quotes and whitespace
+ */
+export function cleanIdolReply(text) {
+  if (!text || typeof text !== "string") return "";
+
+  let cleaned = text;
+
+  // 1. Strip reasoning / thinking tags
+  cleaned = cleaned.replace(/<(?:think|thought)>[\s\S]*?<\/(?:think|thought)>/gi, "");
+  cleaned = cleaned.replace(/^(?:\*+)?(?:Formulate the Response Strategy|Thinking Process|Thought Process|Plan|Strategy|Reasoning)(?:\*+)?:?\s*/i, "");
+
+  // 2. Strip parenthetical meta leaks like "(oops, satu emoji aja)", "(maksimal 1 emoji)", "(satu emoji saja)"
+  cleaned = cleaned.replace(/\s*\([^)]*(?:emoji|oops|aturan|instruksi|system|prompt|karakter|note|token|sensor)[^)]*\)/gi, "");
+
+  // 3. Strip roleplay action asterisks like *tersenyum*, *tertawa*, *memeluk*
+  cleaned = cleaned.replace(/\*[^*]+\*/g, "");
+
+  // 4. Strip AI prefixes like "Freya: " or "Idol: " or "Gita: " or "Assistant: "
+  cleaned = cleaned.replace(/^[A-Za-z0-9\s_-]+:\s*/, "");
+
+  // 5. Strip accidental stage slogan/mantra leaks (e.g. "Papipapipum!", "Abracadabra!") in everyday chat
+  cleaned = cleaned.replace(/\b(?:papipapipum|abrakadabra|abracadabra)\b[!?,.]*/gi, "");
+
+  // 6. Clean extra wrapping quotes
+  cleaned = cleaned.trim().replace(/^["']|["']$/g, "").trim();
+
+  // 7. Normalize double spaces and punctuation spacing
+  cleaned = cleaned.replace(/[ \t]{2,}/g, " ").replace(/ ([.,!?~])/g, "$1").trim();
+
+  return cleaned;
+}
+
+/**
  * Limits emoji usage in chat text:
- * - Emojis are NOT placed in every chat.
- * - By default, emojis only appear on specific playful/humorous moments (rarely, ~15% chance).
- * - In 85%+ of chats, emojis are stripped completely so conversations feel natural, interactive, and not annoying.
- * - When allowed, at most maxEmojis (default 1) is kept.
+ * - In 85%+ of chats, messages are natural clean text without emojis.
+ * - Emojis only appear on rare playful/humorous moments (10-20% chance).
+ * - When allowed, keeps at most maxEmojis (default 1).
  */
 export function limitEmojis(text, maxEmojis = 1, forceKeep = false) {
   if (!text || typeof text !== "string") return text;
 
-  // Match emoji graphemes including variation selectors, modifiers, and ZWJ sequences
   const emojiRegex = /\p{Extended_Pictographic}(?:\uFE0F|\uD83C[\uDFFB-\uDFFF])?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\uD83C[\uDFFB-\uDFFF])?)*|[\u{1F1E6}-\u{1F1FF}]{2}/gu;
 
-  // Check if text has any emoji
   if (!emojiRegex.test(text)) return text;
-  // Reset lastIndex because of /g flag
   emojiRegex.lastIndex = 0;
 
   // Detect playful or teasing moments
@@ -33,13 +66,35 @@ export function limitEmojis(text, maxEmojis = 1, forceKeep = false) {
     return emojiCount <= maxEmojis ? match : "";
   });
 
-  // Clean up double spaces or spaces left before punctuation
   cleaned = cleaned
     .replace(/[ \t]{2,}/g, " ")
     .replace(/ ([.,!?~])/g, "$1")
     .trim();
 
   return cleaned;
+}
+
+
+export function getMemberArchetype(member) {
+  const id = (member?.id || "").toLowerCase();
+  if (["gita", "kathrina", "delynn"].includes(id)) return "tsundere_cool";
+  if (["christy", "michie", "ella"].includes(id)) return "chaos_savage";
+  if (["freya", "indah", "oniel"].includes(id)) return "dad_jokes_warm";
+  if (["olla", "feni", "muthe"].includes(id)) return "slay_gaul";
+  if (["lia", "lulu", "ribka", "cynthia", "danella", "nachia"].includes(id)) return "social_butterfly";
+  if (["lily", "nayla", "elin", "oline", "daisy"].includes(id)) return "polos_cute";
+  if (["lana", "greesel", "raisha", "aralie", "trisha"].includes(id)) return "gentle_classic";
+  if (["eli", "marsha", "lyn"].includes(id)) return "wibu_gamer";
+  if (["gracie", "erine", "kimmy", "nala"].includes(id)) return "leader_pede";
+  const trainees = [
+    "fera", "virgi", "rilly", "carissa", "bella", "fahira", "rara",
+    "giaa", "heidi", "maira", "ekin", "jemima", "maxine", "mikaela",
+    "intan", "jazzy", "ralyne", "sona"
+  ];
+  if (trainees.includes(id) || (member?.generation && (member.generation.includes("13") || member.generation.includes("14")))) {
+    return "trainee_school";
+  }
+  return "sweet_cheerful";
 }
 
 export const AIService = {
@@ -50,6 +105,29 @@ export const AIService = {
     if (cleanKey.startsWith("AIza") || cleanKey.startsWith("AQ.")) return "gemini";
     if (cleanKey.startsWith("gsk_")) return "groq";
     return Storage.getAiProvider() || "gemini";
+  },
+
+  // Fetch live accessible models from Groq for a given key
+  async fetchGroqModels(apiKey) {
+    if (!apiKey) return [];
+    const cleanKey = apiKey.trim().replace(/^["']|["']$/g, "");
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/models", {
+        headers: { "Authorization": `Bearer ${cleanKey}` }
+      });
+      if (!res.ok) return [];
+      const json = await res.json();
+      const list = json?.data || [];
+      return list
+        .map(m => m.id)
+        .filter(id => {
+          const l = id.toLowerCase();
+          return !l.includes("whisper") && !l.includes("guard") && !l.includes("orpheus") && !l.includes("audio");
+        });
+    } catch (e) {
+      console.warn("fetchGroqModels failed", e);
+      return [];
+    }
   },
 
   // Test connection for Gemini or Groq
@@ -118,6 +196,8 @@ export const AIService = {
             friendlyMsg = "Generative Language API belum aktif di project Google ini. Solusi: Di aistudio.google.com, klik 'Create API key' lalu pilih 'Create API key in NEW project'!";
           } else if (rawMsg.includes("API key not valid")) {
             friendlyMsg = "API Key tidak valid atau terpotong. Pastikan menyalin seluruh teks key.";
+          } else if (response.status === 429 || rawMsg.toLowerCase().includes("quota") || rawMsg.toLowerCase().includes("rate-limit") || rawMsg.toLowerCase().includes("exceeded")) {
+            friendlyMsg = "Batas kuota Gemini terlampaui (maks 20 request/menit). Ini terjadi jika kunci baru dibuat di PROJECT YANG SAMA dengan kunci lama, atau sedang cooldown 1 menit. Solusi: Tunggu 1 menit, ATAU buat key baru dengan opsi 'Create API key in NEW project', ATAU gunakan Groq AI yang gratis & bebas kuota!";
           }
           return { success: false, message: `Gagal: ${friendlyMsg}`, latency: elapsed };
         }
@@ -128,33 +208,71 @@ export const AIService = {
           latency: elapsed
         };
       } else {
-        // Groq Provider
-        const model = modelId && !modelId.startsWith("gemini") ? modelId : "llama-3.3-70b-versatile";
-        const response = await fetch(GROQ_ENDPOINT, {
+        // Groq Provider - prefer open models like openai/gpt-oss-120b or openai/gpt-oss-20b
+        let testModel = modelId && !modelId.startsWith("gemini") && !modelId.includes("llama-3.3-70b") && !modelId.includes("llama-3.1-8b")
+          ? modelId 
+          : "openai/gpt-oss-120b";
+
+        let response = await fetch(GROQ_ENDPOINT, {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${cleanKey}`,
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: model,
+            model: testModel,
             messages: [{ role: "user", content: "Ping! Jawab 'OK'." }],
             max_tokens: 10
           })
         });
 
-        const elapsed = Math.round(performance.now() - startTime);
-
+        let switchedModel = null;
         if (!response.ok) {
           const errData = await response.json().catch(() => ({}));
-          const msg = errData.error?.message || `HTTP ${response.status}`;
-          return { success: false, message: `Gagal Groq: ${msg}`, latency: elapsed };
+          const errMsg = errData.error?.message || `HTTP ${response.status}`;
+
+          // Automatic fallback if model is restricted (e.g. Enterprise Llama) or not found
+          if (response.status === 404 || errMsg.toLowerCase().includes("does not exist") || errMsg.toLowerCase().includes("access to it")) {
+            const fallbackCandidates = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"];
+            for (const cand of fallbackCandidates) {
+              if (cand === testModel) continue;
+              const retryRes = await fetch(GROQ_ENDPOINT, {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${cleanKey}`,
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                  model: cand,
+                  messages: [{ role: "user", content: "Ping! Jawab 'OK'." }],
+                  max_tokens: 10
+                })
+              });
+              if (retryRes.ok) {
+                response = retryRes;
+                switchedModel = cand;
+                Storage.setSelectedModel(cand);
+                break;
+              }
+            }
+          }
+
+          if (!response.ok) {
+            const elapsed = Math.round(performance.now() - startTime);
+            return { success: false, message: `Gagal Groq: ${errMsg}`, latency: elapsed };
+          }
         }
+
+        const elapsed = Math.round(performance.now() - startTime);
+        const finalMsg = switchedModel
+          ? `Koneksi Groq Cloud Berhasil! (${elapsed}ms) - Dialihkan ke model aktif: ${switchedModel}`
+          : `Koneksi Groq Cloud Berhasil! (${elapsed}ms)`;
 
         return {
           success: true,
-          message: `Koneksi Groq Cloud Berhasil! (${elapsed}ms)`,
-          latency: elapsed
+          message: finalMsg,
+          latency: elapsed,
+          switchedModel: switchedModel || testModel
         };
       }
     } catch (err) {
@@ -175,41 +293,72 @@ export const AIService = {
     const userName = hasCustomUserName ? rawName : "kamu";
     const memberName = member?.shortName || member?.nickname || (member?.name ? member.name.split(" ")[0] : "aku");
 
-    // Build comprehensive, expressive persona instructions
+    // Build natural persona instructions that strictly preserve member-specific personality
     const enhancedPrompt = `${systemPrompt || "Kamu adalah member JKT48 yang ramah dan ceria."}
 
-==============================
-ATURAN KHUSUS CHAT PERSONAL JKT48 PRIVATE MESSAGE:
-1. PENTING - KONTEKS, INTERAKTIF & HARUS 100% NYAMBUNG:
-   - Responmu HARUS BENAR-BENAR NYAMBUNG dan MERESPON LANGSUNG apa yang dikirim penggemar (${userName}).
-   - BACA DENGAN TELITI KATA/TOPIK CHAT PENGGEMAR:
-     * Jika user memanggil panggilan akrab/manja seperti "adek", "adekkk", "dek", "bocil", atau "kakak", RESPONLAH PANGGILAN ITU secara natural dan menggemaskan (sebagai member yang akrab/manja/lucu). DILARANG menganggap user sedang cerita jika user cuma memanggil!
-     * Jika user mengetik singkat ("p", "oi", "fahiraa", "woi", "tes"), respon panggilan tersebut dengan ceria/protes santai karena dispam.
-     * Jika user tertawa ("wkwk", "haha", "ngakak"), tanggapi tawanya dan tanyakan hal lucu apa yang terjadi.
-     * Jika user menjawab singkat ("iya", "nggak", "belum", "udah"), responlah jawaban tersebut dan lanjutkan topik obrolan.
-     * Jika user bertanya ("lagi apa", "umur berapa", "makan apa"), jawab pertanyaan itu dan lempar pertanyaan balik.
-     * Jika user menolak ("gamau", "nggak", "ogah", "males"), tanggapi dengan bercanda/teasing santai ala teman akrab (misal: "dih kok jutek sih wkwk", "ih pelit amat").
-     * JANGAN PERNAH memberikan jawaban yang tidak nyambung (out of context) seperti pura-pura mendengarkan cerita padahal user cuma menyapa atau memanggil!
-   - Panggil nama penggemar ("${userName}") secara manis dan natural sewajarnya jika namanya diketahui.
-   - Panggil diri sendiri dengan nama panggilan akrab "${memberName}" atau "aku", DILARANG menggunakan nama lengkap formal.
+KONTEKS PRIVATE MESSAGE RESMI JKT48:
+- Penggemar yang sedang chatting denganmu: "${userName}".
+- Panggil dirimu dengan nama panggilan akrab "${memberName}" atau "aku" (jangan pakai nama lengkap formal).
+- Anggap penggemar ini teman mengobrol yang dekat di WhatsApp/Private Message.
 
-2. GAYA BAHASA, INTERAKSI & ATURAN EMOJI (SANGAT PENTING):
-   - GAYA BAHASA: Gunakan bahasa Indonesia gaul/santai anak muda Jakarta yang akrab, hangat, dan mengalir (aku, kamu, hehe, wkwk, beneran?, kepo nih, santai aja kali, dll.). HINDARI BAHASA KAKU!
-   - BUAT SANGAT INTERAKTIF: Jangan cuma menjawab pasif satu arah! Selalu ajak penggemar ngobrol dengan pertanyaan balik santai agar chatingan terus hidup dua arah.
-   - ATURAN EMOJI (KETAT): DI SETIAP CHAT TIDAK PERLU SELALU ADA EMOJI!
-     * Mayoritas chat (85%+) HARUS TANPA EMOJI sama sekali, seperti chat orang normal sehari-hari di WhatsApp.
-     * HANYA gunakan emoji sesekali saja di momen tertentu jika benar-benar pas (misal saat tertawa lepas atau bercanda, maksimal 1 emoji saja).
-     * DILARANG KERAS membiasakan menaruh emoji di setiap kalimat atau mengakhiri setiap bubble chat dengan emoji.
-   - Buat balasan mengalir 1-3 kalimat seperti chat Private Message resmi (santai, tidak kaku, hindari format poin/esai).`;
+PRINSIP WAJIB (SANGAT PENTING - BACA TELITI):
+1. DILARANG KERAS MENGULANG SLOGAN / MANTRA PANGGUNG (JIKOUSHOULAI):
+   - JANGAN PERNAH menyertakan slogan panggung, jikoushoukai, atau mantra (seperti "Papipapipum", "Abracadabra", "Kekuatan bulan", dll.) di dalam obrolan chat biasa!
+   - Slogan panggung itu HANYA diucapkan saat perkenalan pertama di atas panggung teater dengan mic, BUKAN untuk chat WhatsApp/PM sehari-hari.
+   - Jika kamu menyertakan slogan/mantra di setiap bubble chat, kamu akan terdengar aneh seperti robot mainan rusak. Mengobrollah natural seperti gadis manusia asli.
+
+2. JANGAN BERHALUSINASI / MENGARANG CERITA YANG TIDAK ADA:
+   - Tanggapi HANYA apa yang benar-benar dikatakan penggemar saat ini secara kontekstual dan spontan.
+   - Jika penggemar bertanya hal santai seperti "kamu lagi apa?" / "lagi ngapain?": Jawab aktivitas idol sehari-hari yang realistis (misal: lagi santai di kamar, baru selesai latihan koreo, lagi denger musik, rebahan, ngemil) lalu tanyakan balik kegiatan penggemar ("Kalau kamu/Kakak lagi ngapain nih?").
+   - JANGAN PERNAH mengarang bahwa kamu sedang "dengerin cerita kamu" jika penggemar BELUM bercerita apa-apa!
+   - JANGAN berasumsi penggemar sedang lesu/sedang tugas/di sekolah/kantor kecuali jika penggemar sendiri yang menyebutkannya.
+
+3. PERTAHANKAN PERSONALITY ASLIMU SECARA NATURAL:
+   - Responmu HARUS 100% konsisten dengan Persona dan Gaya Bicara unikmu:
+     * Lily (Hillary Abigail): Pendiam, pemalu, polos, manis, panggil penggemar dengan sebutan "Kak / Kakak", tutur kata santun dan lembut (misal: "Lagi santai aja nih di kamar Kak hehe. Kakak lagi sibuk apa sekarang?").
+     * Gita: Dingin, irit bicara, cool/tsundere tapi perhatian di akhir ("Lagi istirahat. Kamu sendiri lagi apa? Udah makan?").
+     * Christy: Bocil chaos, tengil, suka ngeledek tapi manja ("Lagi mikirin cara ngerjain kamu wkwk! Gak deng, lagi rebahan santai. Kamu lagi apa?").
+     * Freya: Ramah, manis, The Girl Next Door, suka celetuk jokes garing bapak-bapak yang menghibur.
+     * Olla: Gaul Jaksel, slay, percaya diri, santai dan asik diajak nongkrong ("Slayyy", "Jujurly").
+     * Fiony: Berjiwa seni/estetik, tapi aslinya sering bertingkah airhead (lemot/loading lama) yang bikin gemas.
+     * Lia: Super cerewet, enerjik tanpa batas, social butterfly andalan.
+     * Lana: Lembut, tutur katanya halus dan adem didengar, citra idol klasik.
+     * Elin: Sangat ekspresif, imut, gampang salting dan reaktif gemas.
+     * Michie: Kelihatannya manis tapi jahil suka ngerjain penggemar.
+     * Fritzy: Playful, cerdas, suka bikin penasaran dengan teka-teki santai (tanpa mantra sulap).
+     * Anindya: Pemalu tapi punya sense of comedy yang bagus dan celetukan lucu.
+     * Trainee (Gen 13 & 14): Siswi sekolah polos, panggil "Kakak / Kak", sopan dan antusias belajar.
+
+4. FORMAT CHAT WHATSAPP ASLI:
+   - Panjang pesan: 1 sampai 3 kalimat pendek yang mengalir santai seperti bubble chat WhatsApp orang asli.
+   - Gunakan bahasa gaul percakapan anak muda (aku, kamu/Kakak, hehe, wkwk, yaa, deh, nih, kan).
+   - HINDARI bahasa kaku, gaya asisten AI, penjelasan panjang, atau format poin-poin.
+
+5. ATURAN EMOJI (SANGAT KETAT):
+   - Di mayoritas pesan (85%+), gunakan teks murni tanpa emoji sama sekali.
+   - HANYA gunakan maksimal 1 emoji sesekali di momen tertentu jika benar-benar pas (misal saat tertawa atau salting).
+   - DILARANG menampilkan komentar meta, instruksi dalam kurung seperti "(oops...)", atau tindakan bertanda bintang (*tersenyum*). Bicaralah murni sebagai member idol.
+
+CONTOH ADAPTASI RESPON SESUAI PERSONALITY (Jika fans minta semangat):
+- Jika Persona Tsundere / Cool (Gita, Kathrina, Delynn): "Lemes kenapa lagi? Jangan manja deh... Tapi yaudah, semangat ya. Awas kalau lemes terus."
+- Jika Persona Chaos / Jahil (Christy, Michie, Ella): "Dihh lemes amat wkwk! Sini aku ketawain dulu biar melek. Canda deng, semangat dong! Kenapa emang hari ini?"
+- Jika Persona Kalem / Idol Klasik (Lana, Greesel, Raisha): "Halo... Kenapa lesu? Istirahat sejenak dulu yaa, jangan dipaksakan. Aku temenin ngobrol di sini pelan-pelan yaa."
+- Jika Persona Social Butterfly / Heboh (Lia, Cynthia, Lulu): "WOI jangan lemes-lemes dong! Sini aku transfer energi hebohku biar kamu langsung on fire lagi wkwk!"
+- Jika Persona Dad Jokes / Manis (Freya, Indah, Oniel): "Lho kenapa lemes? Butuh semangat apa nih? Mau dikasih tebak-tebakan garing biar segeran? Hehe semangat yaa!"
+- Jika Persona Estetik tapi Lemot / Airhead (Fiony): "Ehh butuh semangat? Bentar ya... aku lagi mikir kata mutiara apa yang bagus... hehe gak deng, semangat yaa!"
+- Jika Persona Pemalu & Komedi (Anindya): "Aduh tiba-tiba todong minta semangat wkwk. Yaudah nih aku kasih semangat rasa mangga manis. Udah kerasa belum efeknya?"
+- Jika Persona Ekspresif & Mudah Salting (Elin): "Ihh kok gitu sih manggilnya wkwk! Aku jadi bingung mau semangatin gimana... Pokoknya semangat yaa! Jangan lesu-lesu!"
+- Jika Persona Polos & Manis (Lily): "Kakak kenapa lemes? Jangan lupa istirahat dan minum air yaa Kak hehe. Lily temenin ngobrol di sini sampai segeran lagi!"
+- Persona Trainee Remaja (Gen 13 & 14): "Kakak kenapa lemes? Semangat ya Kak! Jangan lupa istirahat, nanti kalau udah segeran kabarin aku yaa!"`;
 
     if (!cleanKey) {
       const offline = await this._simulateOfflineResponse(member, userText, profile, chatHistory);
-      return limitEmojis(offline.text, 1);
+      return limitEmojis(cleanIdolReply(offline.text), 1);
     }
 
     try {
       if (effectiveProvider === "gemini") {
-        const selectedModel = modelId && modelId.startsWith("gemini") ? modelId : "gemini-1.5-flash";
+        const selectedModel = modelId && modelId.startsWith("gemini") ? modelId : "gemini-3.6-flash";
         const res = await this._callGeminiAPI({
           apiKey: cleanKey,
           model: selectedModel,
@@ -217,9 +366,11 @@ ATURAN KHUSUS CHAT PERSONAL JKT48 PRIVATE MESSAGE:
           chatHistory: chatHistory || [],
           userText
         });
-        return limitEmojis(res.text, 1);
+        return limitEmojis(cleanIdolReply(res.text), 1);
       } else {
-        const selectedModel = modelId && !modelId.startsWith("gemini") ? modelId : "llama-3.3-70b-versatile";
+        const selectedModel = modelId && !modelId.startsWith("gemini") && !modelId.includes("llama-3.3-70b") && !modelId.includes("llama-3.1-8b") 
+          ? modelId 
+          : "openai/gpt-oss-120b";
         const res = await this._callGroqAPI({
           apiKey: cleanKey,
           model: selectedModel,
@@ -227,16 +378,20 @@ ATURAN KHUSUS CHAT PERSONAL JKT48 PRIVATE MESSAGE:
           chatHistory: chatHistory || [],
           userText
         });
-        return limitEmojis(res.text, 1);
+        return limitEmojis(cleanIdolReply(res.text), 1);
       }
     } catch (err) {
       console.error("AI API Request error:", err);
       // Alert user with toast so they immediately know why the AI failed
       if (typeof window !== "undefined" && window.showToast) {
-        window.showToast(`⚠️ Gemini API: ${err.message} (Fallback ke Mode Offline)`, "⚠️");
+        let msg = err.message || "";
+        if (msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("rate-limit") || msg.toLowerCase().includes("exceeded")) {
+          msg = "Kuota gratis Gemini penuh (maks 20 chat/menit). Beralih ke Mode Offline. Tunggu beberapa detik atau gunakan Groq AI!";
+        }
+        window.showToast(`⚠️ ${msg}`, "⚠️");
       }
       const fallback = await this._simulateOfflineResponse(member, userText, profile, chatHistory);
-      return limitEmojis(fallback.text, 1);
+      return limitEmojis(cleanIdolReply(fallback.text), 1);
     }
   },
 
@@ -276,9 +431,11 @@ ATURAN KHUSUS CHAT PERSONAL JKT48 PRIVATE MESSAGE:
       const recent = chatHistory.slice(-10);
       for (const msg of recent) {
         if (!msg || !msg.text || msg.isSpecial || msg.isSystem) continue;
+        const cleanText = msg.isUser ? String(msg.text).trim() : cleanIdolReply(String(msg.text));
+        if (!cleanText) continue;
         rawTurns.push({
           role: msg.isUser ? "user" : "model",
-          text: String(msg.text).trim()
+          text: cleanText
         });
       }
     }
@@ -322,7 +479,7 @@ ATURAN KHUSUS CHAT PERSONAL JKT48 PRIVATE MESSAGE:
   },
 
   // Gemini API implementation with conversation history & system instruction
-  async _callGeminiAPI({ apiKey, model, systemPrompt, chatHistory, userText }) {
+  async _callGeminiAPI({ apiKey, model, systemPrompt, chatHistory, userText, isRetry = false }) {
     const cleanKey = (apiKey || "").trim().replace(/^["']|["']$/g, "");
     let effectiveModel = model && !model.includes("1.5-") ? model : "gemini-3.6-flash";
     let url = `${GEMINI_ENDPOINT_BASE}/${effectiveModel}:generateContent?key=${cleanKey}`;
@@ -405,11 +562,20 @@ ATURAN KHUSUS CHAT PERSONAL JKT48 PRIVATE MESSAGE:
     }
 
     if (!response.ok) {
+      if (response.status === 429 && !isRetry) {
+        // Otomatis tunggu 4 detik melewati jeda rate limit lalu coba lagi 1x
+        await new Promise(r => setTimeout(r, 4000));
+        return this._callGeminiAPI({ apiKey, model: effectiveModel, systemPrompt, chatHistory, userText, isRetry: true });
+      }
+
       const errData = await response.json().catch(() => ({}));
       const rawMsg = errData.error?.message || `HTTP ${response.status}: ${response.statusText}`;
       const reason = errData.error?.details?.[0]?.reason || "";
       if (reason === "ACCESS_TOKEN_TYPE_UNSUPPORTED" || rawMsg.includes("Expected OAuth 2")) {
         throw new Error("Generative Language API belum aktif di project ini. Buat key baru di Google AI Studio dengan opsi 'Create API key in NEW project'!");
+      }
+      if (response.status === 429 || rawMsg.toLowerCase().includes("quota") || rawMsg.toLowerCase().includes("rate-limit") || rawMsg.toLowerCase().includes("exceeded")) {
+        throw new Error("Batas kuota gratis Gemini terlampaui (maks 20 chat/menit). Tunggu beberapa detik, atau gunakan Groq AI yang lebih cepat & bebas kuota!");
       }
       throw new Error(rawMsg);
     }
@@ -445,64 +611,122 @@ ATURAN KHUSUS CHAT PERSONAL JKT48 PRIVATE MESSAGE:
     };
   },
 
-  // Groq API implementation with full context memory
-  async _callGroqAPI({ apiKey, model, systemPrompt, chatHistory, userText }) {
-    const messages = [
-      { role: "system", content: systemPrompt }
-    ];
+  // Construct clean alternating user/assistant messages for Groq OpenAI format
+  _buildGroqMessages(systemPrompt, chatHistory, userText) {
+    const messages = [{ role: "system", content: systemPrompt }];
+    const turns = [];
 
     if (chatHistory && chatHistory.length > 0) {
-      const recent = chatHistory.slice(-10);
+      const recent = chatHistory.slice(-8);
       for (const msg of recent) {
         if (!msg || !msg.text || msg.isSpecial || msg.isSystem) continue;
-        messages.push({
+        const cleanContent = msg.isUser ? String(msg.text).trim() : cleanIdolReply(String(msg.text));
+        if (!cleanContent) continue;
+        turns.push({
           role: msg.isUser ? "user" : "assistant",
-          content: String(msg.text).trim()
+          content: cleanContent
         });
       }
     }
 
-    // Check if last message is already userText
-    const lastMsg = messages[messages.length - 1];
-    if (!lastMsg || lastMsg.role !== "user" || lastMsg.content !== userText.trim()) {
+    // Ensure last turn is current userText
+    const lastTurn = turns[turns.length - 1];
+    if (!lastTurn || lastTurn.role !== "user" || lastTurn.content !== userText.trim()) {
+      turns.push({ role: "user", content: userText.trim() });
+    }
+
+    // Strictly normalize alternating user/assistant turns
+    for (const turn of turns) {
+      if (!turn.content) continue;
+      const prev = messages[messages.length - 1];
+      if (prev && prev.role === turn.role && prev.role !== "system") {
+        prev.content += `\n${turn.content}`;
+      } else {
+        messages.push({ role: turn.role, content: turn.content });
+      }
+    }
+
+    // Ensure last message is from user
+    if (messages[messages.length - 1]?.role !== "user") {
       messages.push({ role: "user", content: userText.trim() });
     }
+
+    return messages;
+  },
+
+  // Groq API implementation with full context memory & automatic model fallback
+  async _callGroqAPI({ apiKey, model, systemPrompt, chatHistory, userText, isRetry = false }) {
+    const cleanKey = (apiKey || "").trim().replace(/^["']|["']$/g, "");
+    let effectiveModel = model && !model.startsWith("gemini") && !model.includes("llama-3.3-70b") && !model.includes("llama-3.1-8b")
+      ? model 
+      : "openai/gpt-oss-120b";
+
+    const messages = this._buildGroqMessages(systemPrompt, chatHistory, userText);
 
     const response = await fetch(GROQ_ENDPOINT, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
+        "Authorization": `Bearer ${cleanKey}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: model,
+        model: effectiveModel,
         messages: messages,
-        temperature: 0.88,
-        max_tokens: 250
+        temperature: 0.78,
+        top_p: 0.9,
+        max_tokens: 300
       })
     });
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.error?.message || `HTTP ${response.status}`);
+      const errMsg = errData.error?.message || `HTTP ${response.status}`;
+
+      // If model not found or has no access (e.g. Enterprise Llama), auto-fallback to public models
+      if (!isRetry && (response.status === 404 || errMsg.toLowerCase().includes("does not exist") || errMsg.toLowerCase().includes("access to it"))) {
+        console.warn(`Groq model ${effectiveModel} failed, trying fallback public models...`);
+        const fallbacks = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"];
+        for (const fb of fallbacks) {
+          if (fb === effectiveModel) continue;
+          try {
+            const fallbackResult = await this._callGroqAPI({
+              apiKey: cleanKey,
+              model: fb,
+              systemPrompt,
+              chatHistory,
+              userText,
+              isRetry: true
+            });
+            Storage.setSelectedModel(fb);
+            return fallbackResult;
+          } catch (e) {
+            // try next candidate
+          }
+        }
+      }
+
+      throw new Error(`Groq: ${errMsg}`);
     }
 
     const data = await response.json();
-    const reply = data.choices?.[0]?.message?.content?.trim();
+    let reply = data.choices?.[0]?.message?.content?.trim();
 
     if (!reply) {
       throw new Error("Respon kosong dari Groq");
     }
 
+    // Clean artifacts, thinking tags, or meta commentary
+    reply = cleanIdolReply(reply);
+
     return {
       success: true,
       text: reply,
-      modelUsed: model,
+      modelUsed: effectiveModel,
       provider: "Groq Cloud"
     };
   },
 
-  // Rich, contextual, intelligent offline simulated fallback
+  // Rich, contextual, intelligent offline simulated fallback with Archetype Personality Engine
   async _simulateOfflineResponse(member, userText, profile, chatHistory) {
     await new Promise((r) => setTimeout(r, 450 + Math.random() * 350));
 
@@ -513,12 +737,13 @@ ATURAN KHUSUS CHAT PERSONAL JKT48 PRIVATE MESSAGE:
     const uNameComma = hasCustomName ? `, ${rawName}` : "";
     const memberName = member?.shortName || member?.nickname?.split(",")[0]?.trim() || (member?.name ? member.name.split(" ")[0] : "aku");
     const lower = (userText || "").toLowerCase().trim();
-    const cleanWords = lower.replace(/[^\w\s]/g, " ").split(/\s+/).filter(Boolean);
+    const cleanWords = lower.replace(/[^\\w\\s]/g, " ").split(/\\s+/).filter(Boolean);
+    const archetype = getMemberArchetype(member);
 
     // Helper to pick a response that wasn't used in recent messages to avoid repetitions
     const recentBotTexts = (chatHistory || [])
       .filter(m => !m.isUser && m.text)
-      .slice(-5)
+      .slice(-6)
       .map(m => m.text);
 
     const pickBest = (options) => {
@@ -533,13 +758,45 @@ ATURAN KHUSUS CHAT PERSONAL JKT48 PRIVATE MESSAGE:
       lower.includes("adek") || lower.includes("bocil") || lower.includes("adik");
 
     if (isAdekOrBocil) {
+      if (archetype === "tsundere_cool") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Siapa yang kamu panggil bocil? Aku lebih dewasa dari kelihatannya ya.`,
+            `Gak usah panggil adek-adek deh. Ada apa?`,
+            `Dih, sok tua banget manggil adek wkwk. Mau ngomong apa sih?`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "chaos_savage") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Hahaha apaan sih manggil adek! Beliin es krim dulu baru aku panggil Kakak 😝`,
+            `Dih bocil teriak bocil wkwk! Ada apa manggil-manggil? Kangen ya?`,
+            `Iya Kakak tua! Hehe bercanda yaa, jangan baper. Ada apa nih manggil adek tercinta?`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "polos_cute" || archetype === "trainee_school") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Iyaa Kakak! Hehe ada apa manggil aku? Mau cerita sesuatu ya Kak?`,
+            `Halo Kak${uNameComma}! Seneng deh dipanggil adek, kayak punya kakak sendiri hehe.`,
+            `Iya Kak... Ada yang bisa aku bantu gak nih Kakak?`
+          ])),
+          isSimulated: true
+        };
+      }
       return {
         success: true,
         text: limitEmojis(pickBest([
           `Ihh manggil-manggil adek! Emang keliatan masih kayak bocil banget ya? Tapi emang gemes kan wkwk. Ada apa manggil-manggil nih?`,
           `Iyaa Kak! Hehe ada apa manggil adek? Mau jajanin es krim ya? Kalau iya aku mau banget lho wkwk.`,
           `Halo Kak${uNameComma}! Kenapa manggil adek terus nih dari tadi? Tumben banget, lagi kangen ya?`,
-          `Iyaa ada apa Kak? Dipanggil adek gini serasa punya kakak sendiri deh hehe. Kamu lagi di mana sekarang?`,
           `Hadirr! Jangan cuma manggil doang dong wkwk, ada apa nih? Mau cerita sesuatu ke ${memberName}?`
         ])),
         isSimulated: true
@@ -551,6 +808,96 @@ ATURAN KHUSUS CHAT PERSONAL JKT48 PRIVATE MESSAGE:
       lower.startsWith("woi") || lower.startsWith("oy") || lower.includes("bales dong") || lower.includes("kok gak dibales") || lower.includes("kok ga dibales");
 
     if (isPingOrSpam) {
+      if (archetype === "tsundere_cool") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Berisik. Jangan dispam gitu. Ada apa?`,
+            `Hm? Kenapa manggil-manggil terus.`,
+            `Iya, ini dibalas kok. Sabar dikit kenapa sih.`,
+            `Gak usah nyepam. Aku baca kok.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "chaos_savage") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Hadirrr! Jangan nyepam dong wleee 😝 Ada apa nih?`,
+            `Apaan sih manggil-manggil terus wkwk, kangen ya? Ngaku gak!`,
+            `Iyaa ini udah hadir! Gak usah heboh gitu dong wkwk, ada kabar apa?`,
+            `Dih gak sabaran banget wkwk! Nih udah dibales, mau ngomong apa?`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "dad_jokes_warm") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Hadir! Jangan tegang gitu dong, santai kayak di pantai wkwk. Ada apa nih?`,
+            `Iya halo! Tumben buru-buru, lagi dikejar cicilan ya wkwk? Mau cerita apa?`,
+            `Halo halo! Sabar yaa, tadi aku lagi mikir tebak-tebakan baru nih hehe. Ada apa?`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "slay_gaul") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Sabar say! Slay queen butuh waktu bales chat dong wkwk. Ada apa nih?`,
+            `Hadirrr! Kenapa nih heboh amat manggilnya bestie? Spill dong!`,
+            `Iya iya ini dibales kok, gak usah panik gitu yaa santai aja.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "social_butterfly") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `IYA HADIRR DONG! Gak usah panik gitu wkwk, aku selalu ada kok!! Ada cerita heboh apa nih?!`,
+            `WADUH ada apa nih manggil-manggil cepet banget?! Sini cerita langsung!!`,
+            `Hadir seribu persen! Tadi lagi lompat-lompat nih wkwk, ada kabar apa?`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "polos_cute") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Iya Kakak hadir... Jangan kenceng-kenceng manggilnya hehe, ada apa Kak?`,
+            `Iya ini Lily/aku udah ada kok... Jangan panik ya Kak.`,
+            `Iya Kakak... Ada apa Kak? Lily di sini kok hehe.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "wibu_gamer") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Waduh jangan dispam bro, lagi clutch moment nih tadi wkwk! Ada apa?`,
+            `Moshi-moshi! Siap menerima quest dari kamu hehe, ada apa nih?`,
+            `Santai santai, HP gak bakal kabur kok wkwk! Mau cerita apa?`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "trainee_school") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Iya Kakak hadir! Maaf ya tadi HP-nya aku simpan di tas pas latihan hehe. Ada apa Kak?`,
+            `Hadir Kak! Kenapa manggil aku buru-buru gitu Kakak?`,
+            `Iya Kak, ini udah aku balas yaa hehe. Kakak mau cerita apa nih?`
+          ])),
+          isSimulated: true
+        };
+      }
       return {
         success: true,
         text: limitEmojis(pickBest([
@@ -566,6 +913,72 @@ ATURAN KHUSUS CHAT PERSONAL JKT48 PRIVATE MESSAGE:
     // 3. Reaksi Ketawa / Humor ("wkwk", "haha", "hehe", "ngakak", "xixi", "lol")
     const isLaughing = /^(w+k+|h+a+|h+e+|x+i+|l+o+l+|n+g+a+k+a+k+)+$/i.test(lower) || lower.includes("wkwk") || lower.includes("ngakak");
     if (isLaughing) {
+      if (archetype === "tsundere_cool") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Ketawa mulu. Gak ada yang lucu padahal... Tapi ya bagus deh kalau seneng.`,
+            `Dih, malah ketawa. Kenapa sih?`,
+            `Puas banget ketawanya. Bagi-bagi dong lucunya ke aku.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "chaos_savage") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Hahaha puas banget ketawanya wkwk! Ngeliatin muka siapa sih kok ngakak gitu? 😝`,
+            `Wkwk ngakak abis! Tapi emang aku selalu berhasil bikin ketawa kan? Akui aja deh!`,
+            `Tuh kan ketawa! Padahal aku gak lagi ngelawak lho wkwk.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "dad_jokes_warm") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Wkwk tuh kan terbukti jokes aku berhasil bikin kamu ketawa! Hehe seneng deh!`,
+            `Haha ketawa kan! Besok-besok aku kasih tebakan yang lebih garing lagi deh wkwk.`,
+            `Hehe puas banget ketawanya! Seneng deh bisa bikin kamu tersenyum hari ini.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "slay_gaul") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Ngakak brutal ya bestie wkwk! Tapi seru banget sih emang!`,
+            `Puas banget ketawanya say! Jangan lupa nafas yaa wkwk.`,
+            `Wkwk ngakak berjamaah! Sumpah itu kocak banget sih.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "social_butterfly") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `WKWKWK IKUTAN KETAWA DONG!! Seru banget sih harimu, cerita dong ada apaan?!`,
+            `Hahaha seneng banget liat kamu heboh gini!! Lanjutin dong ceritanya!`,
+            `Wkwkwk puas banget yaa! Energi positif kamu nyampe ke aku nih!`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "polos_cute") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Hehe... Seneng deh kalau Kakak ketawa, jadi ikut senyum.`,
+            `Kakak ketawanya lucu banget... Ada yang bikin seneng ya hari ini?`,
+            `Hihi Kakak ketawa terus! Ikutan senyum deh jadinya...`
+          ])),
+          isSimulated: true
+        };
+      }
       return {
         success: true,
         text: limitEmojis(pickBest([
@@ -578,147 +991,114 @@ ATURAN KHUSUS CHAT PERSONAL JKT48 PRIVATE MESSAGE:
       };
     }
 
-    // 4. Tanggapan Singkat Persetujuan ("iya", "iyalah", "hooh", "bener", "yoi", "betul", "siap", "oke", "ok", "sip", "yup")
-    const isAgreement = /^(iya+|iyalah|hooh|bener+|yoi|betul+|siap+|oke+|ok+|sip+|yep|yup|setuju)$/i.test(lower);
-    if (isAgreement) {
-      return {
-        success: true,
-        text: limitEmojis(pickBest([
-          `Nah kan bener! Firasat ${memberName} emang gak pernah meleset hehe. Terus sekarang kamu lagi mau ngapain lagi nih?`,
-          `Sip kalau gitu! Seneng deh sependapat sama kamu. Eh ngomong-ngomong, hari ini kamu sibuk apa aja?`,
-          `Hehe iyaa dong! Mantap. Terus kelanjutannya gimana nih menurut kamu?`,
-          `Oke deh! Jangan lupa kabarin aku terus yaa kalau ada hal seru hari ini.`
-        ])),
-        isSimulated: true
-      };
-    }
-
-    // 5. Tanggapan Singkat Penolakan / Belum / Ngambek ("nggak", "enggak", "belum", "ga", "gak", "belom", "males", "ogah", "gamau")
-    const isRefusalOrPending = /^(ngg?ak|engg?ak|bel[ou]m|ga+|gak+|ogah|males+|gamau|ngga)$/i.test(lower) ||
-      lower.includes("belum") || lower.includes("belom") || lower.includes("gamau") || lower.includes("ga mau") ||
-      lower.includes("males") || lower.includes("ogah") || lower.includes("jutek") || lower.includes("dih") ||
-      lower.includes("ngambek") || lower.includes("terserah") || lower.includes("ga nyambung") || lower.includes("gak nyambung");
-
-    if (isRefusalOrPending) {
-      if (lower.includes("belum") || lower.includes("belom")) {
-        return {
-          success: true,
-          text: limitEmojis(pickBest([
-            `Lho, kenapa belum? Jangan ditunda-tunda yaa! Mau ditemenin gak nih biar cepet kelar?`,
-            `Masa sih belum? Jangan kelamaan yaa wkwk. Terus sekarang kamu lagi nunggu apa nih?`,
-            `Yaudah santai dulu aja kalau belum. Sekarang kamu lagi pengen ngapain nih?`
-          ])),
-          isSimulated: true
-        };
-      }
-      return {
-        success: true,
-        text: limitEmojis(pickBest([
-          `Dih, kok jutek banget sih wkwk. Padahal ${memberName} udah pasang telinga buat dengerin lho! Lagi ada yang bikin kamu kesel ya?`,
-          `Ihh kok judes gitu${uNameComma}. Lagi ada masalah apa nih di luar sana? Sini cerita pelan-pelan ke aku.`,
-          `Wkwk galak amat! Maaf yaa kalau tadi aku kurang nyambung. Ya udah deh, kamu lagi pengen ngobrolin apa nih sekarang?`,
-          `Ciee ada yang ngambek nih. Jangan jutek-jutek dong, nanti aura manisnya ilang lho. Mau aku hibur gak nih?`,
-          `Yaudah kalau lagi gamau cerita, tapi jangan tutup chatnya ya. Temenin ${memberName} ngobrol aja di sini, kamu lagi senggang kan?`
-        ])),
-        isSimulated: true
-      };
-    }
-
-    // 6. Kebingungan / Pertanyaan Balik ("kenapa", "knp", "kok gitu", "kok bisa", "apaan", "maksudnya", "lah", "hah", "apa")
-    const isConfused = /^(kenapa+|knp+|kok gitu|kok bisa|apaan|maksudnya|hah+|lah+|apa+|gimana|knpa)$/i.test(lower) ||
-      lower.includes("kenapa") || lower.includes("kok bisa") || lower.includes("kok gitu") || lower.includes("maksudnya");
-
-    if (isConfused) {
-      return {
-        success: true,
-        text: limitEmojis(pickBest([
-          `Hehe kepo ya? Mau tau aja apa mau tau banget nih wkwk. Coba tebak dulu dong!`,
-          `Wkwk bingung ya? Makanya dengerin baik-baik. Sini mau aku jelasin pelan-pelan gak nih?`,
-          `Yaa gitu deh, rahasia member JKT48 dong hehe. Tapi kalau kamu yang nanya, nanti aku kasih bocoran deh. Mau denger bocoran apa nih?`,
-          `Lah kok bingung wkwk. Kamu sendiri lagi mikirin apa sih kok sampai nanya gitu?`
-        ])),
-        isSimulated: true
-      };
-    }
-
-    // 7. Biodata & Profil Member ("umur", "lahir", "ultah", "ulang tahun", "gen", "tim", "jiko", "sekolah", "darah")
-    if (lower.includes("umur") || lower.includes("lahir") || lower.includes("ultah") || lower.includes("ulang tahun")) {
-      return {
-        success: true,
-        text: limitEmojis(pickBest([
-          `Aku lahir tanggal ${member?.birthDate || "13 Agustus 2012"} lho! Masih muda banget kan hehe. Kalau kamu sendiri lahir tahun berapa nih?`,
-          `Hehe kepo umur ya? Aku lahir ${member?.birthDate || "2012"}, masih muda dan semangat! Tebak dong golongan darah aku apa?`
-        ])),
-        isSimulated: true
-      };
-    }
-
-    if (cleanWords.includes("gen") || lower.includes("generasi") || cleanWords.includes("tim") || lower.includes("team")) {
-      return {
-        success: true,
-        text: limitEmojis(pickBest([
-          `Aku di JKT48 ${member?.generation || "Generasi 14"} ${member?.team || "Siswi Pelatihan"}! Kamu sendiri ngikutin JKT48 dari generasi berapa nih?`,
-          `Iya dong, aku bagian dari ${member?.generation || "Generasi 14"}! Suka nonton show kami gak nih?`
-        ])),
-        isSimulated: true
-      };
-    }
-
-    if (lower.includes("jiko") || lower.includes("salam") || lower.includes("perkenalan")) {
-      return {
-        success: true,
-        text: limitEmojis(pickBest([
-          `Jikoshoukai aku: "${member?.bio || "Hai semua, aku Fahira!"}". Gimana, udah hafal belum nih jiko aku?`,
-          `Hehe jikoshoukai aku itu yang paling gampang diinget lho! Coba sebutin jiko member favorit kamu siapa lagi selain aku?`
-        ])),
-        isSimulated: true
-      };
-    }
-
-    // 8. Sapaan & Panggilan Nama Member (e.g. "hai fahira", "halo", "pagi", "oi")
-    const greetings = ["halo", "hai", "hei", "helo", "oy", "oi", "hey", "assalamualaikum", "punten", "pagi", "siang", "sore", "malam", "tes", "test"];
+    // 4. Sapaan & Panggilan Nama Member (e.g. "halo", "hai", "pagi", "siang", "sore", "malam")
+    const greetings = ["halo", "hai", "hei", "helo", "oy", "oi", "hey", "assalamualaikum", "punten", "pagi", "siang", "sore", "malam"];
     const hasGreetingWord = greetings.some(g => cleanWords.includes(g) || lower.startsWith(g));
     const isOnlyCallingName = cleanWords.length <= 2 && (cleanWords.includes(memberName.toLowerCase()) || cleanWords.some(w => w.startsWith(memberName.toLowerCase())));
     const isGreeting = (hasGreetingWord || isOnlyCallingName) && !lower.includes("kangen") && !lower.includes("cantik") && !lower.includes("lucu");
 
     if (isGreeting && lower.length < 40) {
-      if (lower.includes("pagi")) {
+      if (archetype === "tsundere_cool") {
+        if (lower.includes("pagi")) return { success: true, text: limitEmojis(pickBest([`Pagi. Udah sarapan belum? Jangan malas sarapan.`, `Pagi. Semangat latihannya... eh maksudnya semangat harimu.`])), isSimulated: true };
+        if (lower.includes("malam")) return { success: true, text: limitEmojis(pickBest([`Malam. Jangan tidur kemaleman, besok kan ada kegiatan.`, `Malam. Istirahat gih, gak usah begadang terus.`])), isSimulated: true };
         return {
           success: true,
           text: limitEmojis(pickBest([
-            `Pagi juga${uNameComma}! Udah siap buat aktivitas hari ini belum? Jangan lupa sarapan yaa.`,
-            `Selamat pagi! Hari ini ada rencana ke mana aja nih? Semangat ya jalanin harinya!`,
-            `Pagi! Pas banget aku baru bangun dan cek HP nih. Kamu udah mulai beraktivitas?`
+            `Hm? Ya, halo. Tumben nyapa duluan.`,
+            `Ya, halo. Ada apa?`,
+            `Halo. Kenapa manggil? Ada yang penting?`
           ])),
           isSimulated: true
         };
       }
-      if (lower.includes("siang")) {
+      if (archetype === "chaos_savage") {
+        if (lower.includes("pagi")) return { success: true, text: limitEmojis(pickBest([`Pagi juga Kak! Hari ini ada traktiran es krim gak nih buat Christy? Hehe 😝`, `Pagi! Bangun bangun, jangan males-malesan wkwk!`])), isSimulated: true };
+        if (lower.includes("malam")) return { success: true, text: limitEmojis(pickBest([`Malam Kak! Belum tidur kan? Bagus deh, temenin aku ngobrol dulu sini!`, `Malam! Jangan begadang lho nanti mukanya kayak zombie wkwk 😝`])), isSimulated: true };
         return {
           success: true,
           text: limitEmojis(pickBest([
-            `Siang juga${uNameComma}! Udah jam makan siang nih, kamu udah makan belum?`,
-            `Selamat siang! Di tempat kamu cuacanya lagi panas banget gak nih? Lagi ngapain sekarang?`
+            `Hahaha halo Kak! Tumben banget nyapa, lagi kangen sama bocil ini ya wkwk? 😝`,
+            `Hai halo! Pas banget aku lagi senggang nih, mau cerita apa ke Christy?`,
+            `Dih halo juga! Tumben nyapa, pasti ada maunya ya wkwk?`
           ])),
           isSimulated: true
         };
       }
-      if (lower.includes("sore")) {
+      if (archetype === "dad_jokes_warm") {
+        if (lower.includes("pagi")) return { success: true, text: limitEmojis(pickBest([`Pagi! Tahu gak kenapa matahari terbit dari timur? Karena kalau dari barat namanya maghrib hehe. Semangat harinya yaa!`, `Selamat pagi! Semoga harimu sehangat senyumanku hehe.`])), isSimulated: true };
+        if (lower.includes("malam")) return { success: true, text: limitEmojis(pickBest([`Malam juga! Jangan lupa cuci kaki sebelum tidur yaa biar gak mimpi ketemu lelepon umum wkwk.`, `Selamat malam! Istirahat yang cukup yaa.`])), isSimulated: true };
         return {
           success: true,
           text: limitEmojis(pickBest([
-            `Sore juga${uNameComma}! Gimana seharian ini, kerjaan atau kegiatan kamu lancar gak?`,
-            `Selamat sore! Udah mulai santai atau masih ada aktivitas nih? Ceritain dong.`
+            `Halo! Eh pas banget kamu ngechat, hari ini gimana kabarnya? Mau denger jokes bapak-bapak gak? Hehe`,
+            `Hai hai! Seneng deh disapa kamu. Hari ini semangat ya!`,
+            `Halo juga! Pas banget aku baru buka PM nih hehe.`
           ])),
           isSimulated: true
         };
       }
-      if (lower.includes("malam")) {
+      if (archetype === "slay_gaul") {
         return {
           success: true,
           text: limitEmojis(pickBest([
-            `Malam juga${uNameComma}! Hari ini capek gak? Jangan tidur kemalaman yaa, istirahat yang cukup.`,
-            `Selamat malam! Pas banget lagi santai sebelum tidur nih. Gimana harimu tadi, seru gak?`
+            `Halooo say! Slay banget hari ini, apa kabar nih bestie?`,
+            `Pagi/siang love! Siap menaklukkan hari dengan gaya paling kece kan hari ini?`,
+            `Hai hai! Tumben banget nyapa duluan, ada gosip baru apa nih wkwk?`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "social_butterfly") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `HALOOO!! Akhirnya kamu ngechat juga, seneng banget deh!! Lagi ngapain sekarang?!`,
+            `PAGI/SIANG CERIAAA!! Semoga hari ini kamu penuh energi yaa, jangan lemes-lemes!!`,
+            `Hai hai hai!! Wah pas banget aku lagi buka HP nih, ceritain dong harimu gimana!!`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "polos_cute") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Halo Kakak... hehe. Seneng banget dapet chat dari Kakak.`,
+            `Halo Kakak... Jangan lupa makan yaa hari ini.`,
+            `Hai Kak... Hari ini Kakak lagi sibuk gak?`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "gentle_classic") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Halo, selamat pagi/siang/malam yaa. Semoga harimu menyenangkan dan selalu dipenuhi rasa syukur.`,
+            `Terima kasih sudah menyapa. Senang sekali bisa mendengar kabarmu hari ini.`,
+            `Hai, semoga harimu berjalan dengan damai dan lancar yaa.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "wibu_gamer") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Moshi-moshi! Selamat datang kembali senpai hehe. Hari ini mau mabar apa?`,
+            `Yo! Baru beres nonton anime nih, pas banget notif kamu masuk. Ada apa bro?`,
+            `Okaeri! Gimana petualangan kamu hari ini, quest-nya udah selesai?`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "trainee_school") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Halo Kakak! Selamat beraktivitas yaa Kak hehe. Tadi aku baru selesai latihan!`,
+            `Pagi/Siang Kakak! Semangat yaa buat hari ini, semoga harinya lancar terus Kak!`,
+            `Hai Kak! Wah makasih udah nyapa aku, seneng banget deh Kak!`
           ])),
           isSimulated: true
         };
@@ -729,72 +1109,219 @@ ATURAN KHUSUS CHAT PERSONAL JKT48 PRIVATE MESSAGE:
           `Hai hai! Pas banget aku lagi buka Private Message nih, ada apa manggil-manggil ${memberName}?`,
           `Halo${uNameComma}! Seneng deh kamu ngechat aku duluan. Lagi santai atau lagi sibuk nih?`,
           `Haloo! Kaget dapet notif dari kamu hehe. Hari ini ada cerita seru apa nih di tempatmu?`,
-          `Hai! Iyaa aku di sini. Tumben nih nyapa duluan, lagi pengen ngobrol apa sama ${memberName}?`,
-          `Halo juga! Pas banget aku baru selesai istirahat nih. Kamu lagi ngapain sekarang?`
+          `Hai! Iyaa aku di sini. Tumben nih nyapa duluan, lagi pengen ngobrol apa sama ${memberName}?`
         ])),
         isSimulated: true
       };
     }
 
-    // 9. Tanya Kabar & Aktivitas ("lagi apa", "lagi ngapain", "sibuk apa", dll.)
-    if (lower.includes("lagi apa") || lower.includes("lagi ngapain") || lower.includes("sibuk apa") || lower.includes("kegiatan") || lower.includes("kabar") || lower.includes("dimana") || lower.includes("di mana")) {
+    // 5. Pujian & Gombalan ("cantik", "manis", "gemes", "imut", "lucu", "gemoy", "kangen", "sayang", "oshi")
+    if (lower.includes("cantik") || lower.includes("manis") || lower.includes("gemes") || lower.includes("imut") || lower.includes("lucu") || lower.includes("kangen") || lower.includes("sayang") || lower.includes("oshi")) {
+      if (archetype === "tsundere_cool") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Gak usah lebay deh... Tapi ya, makasih.`,
+            `Gombal mulu. Awas kalau gombalin member lain juga ya.`,
+            `Bisa aja kamu. Dah ah, gak usah bikin orang salting.`,
+            `Hm? Cantik? Ya iya lah, baru sadar? Tapi makasih deh.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "chaos_savage") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Hahaha apaan sih Kak geer amat! Tapi emang aku imut sih ya wkwk 😝`,
+            `Ciee jurus gombalan buaya keluar nih wkwk! Beliin es krim dulu baru dimaafin!`,
+            `Wleee jangan muji-muji terus, nanti hidungku tambah mancung lho!`,
+            `Dih tumben manis ngomongnya, ada maunya ya pasti? Ngaku gak! 😝`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "dad_jokes_warm") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Hehe makasih yaa! Kamu juga hari ini manis banget kayak gulali pasar malam wkwk.`,
+            `Aduh dibilang cantik, langsung merah nih muka aku hehe. Makasih yaa apresiasinya!`,
+            `Ciee seneng deh dibilang gitu. Tapi jangan sering-sering ya, nanti aku baper lho hehe.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "slay_gaul") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Aduhh emang dasarnya udah slay dari lahir sih wkwk! Tapi makasih yaa love, kamu emang punya selera tinggi!`,
+            `Ciee muji, tapi jujurly aku suka banget dibilang gitu hehe. You make my day!`,
+            `Tahu aja yang paling slay siapa hehe. Makasih yaa dukungannya terus!`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "social_butterfly") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `WAAAA MAKASIH BANYAK!! Seneng banget dengernya sampai jingkrak-jingkrak hehe!! Kamu yang paling baik deh!!`,
+            `Aduh langsung nambah energi seribu persen dapet pujian dari kamu!! Makasih yaaa!!`,
+            `Ihh gemes banget kamu! Makasih yaa udah selalu ada buat semangatin aku!!`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "polos_cute") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Makasih banyak ya Kakak... Aku jadi malu banget dibilang gitu hehe.`,
+            `Beneran imut ya Kak? Hehe... Makasih yaa, Kakak juga orang baik banget.`,
+            `Ihh makasih Kakak... Seneng banget dibilang gitu sama Kakak.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "gentle_classic") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Terima kasih banyak atas kata-kata manis dan ketulusanmu yaa. Doa baik untukmu juga.`,
+            `Pujianmu sangat berharga dan menghangatkan hati. Semoga harimu selalu dipenuhi kebahagiaan.`,
+            `Terima kasih yaa sudah selalu mendukung dan menyemangatiku dengan tulus.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "wibu_gamer") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Aduh critical hit langsung tembus armor nih wkwk! Makasih yaa senpai!`,
+            `Salting level maksimal sampai HP mau mental wkwk. Makasih yaa apresiasinya!`,
+            `Damage-nya gak ngotak wkwk! Tapi makasih banyak yaa udah jadi support terbaikku.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "trainee_school") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Wah... makasih banyak ya Kakak! Aku jadi malu banget hehe, masih banyak yang harus aku pelajari!`,
+            `Makasih Kakak baik! Nanti nonton aku di theater ya Kak, biar bisa liat langsung!`,
+            `Ihh makasih Kakak hehe... Seneng banget disemangatin sama Kakak!`
+          ])),
+          isSimulated: true
+        };
+      }
       return {
         success: true,
         text: limitEmojis(pickBest([
-          `Lagi selonjoran di backstage nih, lumayan pegel habis latihan koreo bareng member lain. Tapi seru! Kamu sendiri lagi ngapain nih?`,
-          `Ini lagi santai sambil dengerin musik di ruang tunggu. Pas banget notif dari kamu muncul hehe. Kamu lagi di rumah atau di luar?`,
-          `Alhamdulillah kabar baik dan sehat dong! Lagi persiapan buat kegiatan nanti sore. Kalau kamu hari ini gimana kabarnya?`,
-          `Lagi istirahat sejenak nih bareng member lain sambil ngemil. Kamu sendiri udah makan belum jam segini?`,
-          `Lagi nunggu giliran latihan nih hehe. Bosen juga nunggunya, ceritain dong kamu seharian ini ngapain aja?`
+          `Ihh bisa aja gombalnya! Langsung merah nih pipi ${memberName} wkwk. Tapi makasih yaa pujiannya!`,
+          `Aduh makasih banyak yaa! Emang bawaan lahir kayaknya nih manisnya hehe.`,
+          `Ciee jurus rayuannya keluar nih wkwk. Jangan sering-sering yaa, nanti aku beneran kepikiran lho!`,
+          `Hehe makasih yaa! Seneng banget dibilang gitu sama kamu. Tetap dukung aku terus ya!`
         ])),
         isSimulated: true
       };
     }
 
-    // 10. Makan & Jajan ("makan", "laper", "sarapan", "dinner", dll.)
-    if (lower.includes("makan") || lower.includes("laper") || lower.includes("lapar") || lower.includes("sarapan") || lower.includes("lunch") || lower.includes("dinner") || lower.includes("kenyang") || lower.includes("jajan") || lower.includes("seblak") || lower.includes("es krim")) {
-      return {
-        success: true,
-        text: limitEmojis(pickBest([
-          `Aku tadi udah makan nih. Kamu jangan sampai telat makan yaa${uNameComma}, nanti maag-nya kambuh lho. Hari ini makan lauk apa?`,
-          `Wah ngomongin makanan jadi kepikiran jajan nih. Menurut kamu enakan jajan yang manis apa yang pedes ya?`,
-          `Kenyang banget tadi habis makan bareng anak-anak member hehe. Kalau kamu udah makan belum nih? Jangan lupa jaga pola makan ya!`,
-          `Laper ya? Cepetan cari makan gih, jangan ditahan-tahan. Mau makan apa nih rencananya?`
-        ])),
-        isSimulated: true
-      };
-    }
-
-    // 11. Pujian & Godaan ("cantik", "manis", "gemes", "imut", "lucu", "gemoy", "bidadari")
-    if (lower.includes("cantik") || lower.includes("manis") || lower.includes("gemes") || lower.includes("imut") || lower.includes("lucu") || lower.includes("gemoy") || lower.includes("bidadari")) {
-      return {
-        success: true,
-        text: limitEmojis(pickBest([
-          `Ihh bisa aja gombalnya! Langsung merah nih pipi ${memberName} wkwk. Tapi makasih yaa pujiannya, jadi semangat latihan hari ini!`,
-          `Aduh makasih banyak yaa! Emang bawaan lahir kayaknya nih manisnya hehe. Menurut kamu bagian mananya yang paling lucu?`,
-          `Ciee jurus rayuannya keluar nih wkwk. Jangan sering-sering yaa, nanti aku beneran kepikiran lho! Kamu sendiri hari ini udah dibilang manis sama siapa aja?`,
-          `Hehe makasih yaa! Seneng banget dibilang gitu sama kamu. Kapan nih mau ketemu langsung di theater?`
-        ])),
-        isSimulated: true
-      };
-    }
-
-    // 12. Kangen, Gombal & Perasaan ("kangen", "sayang", "cantik", "lucu", "gemas", "oshi", dll.)
-    if (lower.includes("kangen") || lower.includes("sayang") || lower.includes("cinta") || lower.includes("oshi") || lower.includes("salting") || lower.includes("pacar") || lower.includes("jodoh")) {
-      return {
-        success: true,
-        text: limitEmojis(pickBest([
-          `Ihh bisa aja deh bikin ${memberName} senyum-senyum sendiri. Beneran kangen atau gombal doang nih? Hehe`,
-          `Aduh langsung salting deh dibilang gitu. Makasih banyak yaa udah selalu dukung aku! Kamu sendiri lagi kepikiran apa nih?`,
-          `Ciee jurus gombalnya keluar nih wkwk. Tapi makasih yaa, seneng banget dapet apresiasi kayak gini. Kapan nih mau nonton theater lagi?`,
-          `Makasih yaa udah jadiin aku oshi kamu! Nanti kalau ketemu di theater atau handshake, sapa aku yang kenceng ya. Janji?`
-        ])),
-        isSimulated: true
-      };
-    }
-
-    // 13. Kerja & Belajar ("kerja", "kantor", "lembur", "tugas", "ujian", "skripsi", "kuliah", "sekolah")
-    if (lower.includes("capek") || lower.includes("lelah") || lower.includes("pusing") || lower.includes("stres") || lower.includes("stress") || lower.includes("mumet")) {
+    // 6. Curhat / Capek / Semangat ("capek", "lelah", "pusing", "stres", "kerja", "tugas", "kuliah", "sekolah", "semangat")
+    if (lower.includes("capek") || lower.includes("lelah") || lower.includes("pusing") || lower.includes("stres") || lower.includes("stress") || lower.includes("mumet") || lower.includes("kerja") || lower.includes("tugas") || lower.includes("semangat")) {
+      if (archetype === "tsundere_cool") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Kalau capek ya istirahat, jangan dipaksain. Minum air putih terus tidur.`,
+            `Siapa yang bikin kamu pusing? Sini bilang ke aku.`,
+            `Jangan begadang terus. Kesehatan itu nomor satu, ngerti kan?`,
+            `Semangat. Jangan gampang nyerah, kamu pasti bisa lewatin.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "chaos_savage") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Puk puk puk! Sini aku sentil yang bikin kamu capek wkwk. Mau aku hibur gak?`,
+            `Jangan pusing-pusing dong! Mending kita ketawa bareng, sini cerita apa yang bikin kesel!`,
+            `Aduh kasian bocil tua ini wkwk. Rebahan dulu gih, nanti aku chat lagi pas udah segeran!`,
+            `Semangat dong! Jangan lemes gitu, kalah dong sama energi aku yang 1000% ini wkwk 😝`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "dad_jokes_warm") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Semangat yaa! Kamu udah bertahan sejauh ini dan itu keren banget. Mau denger tebakan gak biar gak pusing?`,
+            `Tarik nafas pelan-pelan yaa. Istirahat dulu sejenak, jangan terlalu keras sama diri sendiri.`,
+            `Kamu hebat kok! Rehat sebentar, nanti kita lanjut berjuang bareng-bareng lagi yaa.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "slay_gaul") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Aduh kasian banget bestie! Sini tumpahin semua unek-uneknya ke aku, jangan dipendem sendiri ya.`,
+            `Tarik nafas dulu say, hidup emang kadang ngeselin tapi kamu harus tetep slay!`,
+            `Rebahan dulu gih, jangan sampai overthinking yaa. You did your best today!`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "social_butterfly") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `ADUUHH jangan sedih dong!! Aku kirim peluk virtual dan energi positif yang banyak nih buat kamu!! Semangat yaa!!`,
+            `Puk puk puk! Kamu udah hebat banget hari ini, aku bangga banget sama perjuangan kamu!`,
+            `Jangan lupa istirahat yaa! Nanti kalau udah segeran, kita ngobrol seru lagi!!`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "polos_cute") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Jangan sedih ya Kak... Nanti aku temenin di sini kok. Istirahat yang cukup ya Kak...`,
+            `Semoga rasa capek Kakak cepat hilang yaa... Minum air hangat dulu terus istirahat Kak.`,
+            `Puk puk Kakak... Semangat yaa, aku selalu doain Kakak dari sini.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "wibu_gamer") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Mana yang bikin stres? Biar aku bantai di ranked match wkwk! Rehat dulu gih senpai.`,
+            `HP butuh dicharge, kamu juga butuh recharge! Rehat sejenak yaa biar bar energinya penuh lagi.`,
+            `Jangan sampai burnout bro! Tarik nafas, minum teh hangat, terus tidur.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "trainee_school") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Kakak jangan kecapekan yaa... Semangat terus Kak! Kakak pasti bisa lewatin ini semua!`,
+            `Puk puk Kakak, jangan lupa makan yaa biar tenaganya balik lagi!`,
+            `Semangat Kakak! Kalau capek istirahat dulu yaa, jangan dipaksain.`
+          ])),
+          isSimulated: true
+        };
+      }
       return {
         success: true,
         text: limitEmojis(pickBest([
@@ -806,48 +1333,158 @@ ATURAN KHUSUS CHAT PERSONAL JKT48 PRIVATE MESSAGE:
       };
     }
 
-    if (lower.includes("kerja") || lower.includes("kantor") || lower.includes("lembur") || lower.includes("tugas") || lower.includes("ujian") || lower.includes("skripsi") || lower.includes("kuliah") || lower.includes("sekolah")) {
+    // 7. Tanya Kabar & Aktivitas ("lagi apa", "lagi ngapain", "sibuk apa", dll.)
+    if (lower.includes("lagi apa") || lower.includes("lagi ngapain") || lower.includes("sibuk apa") || lower.includes("kegiatan") || lower.includes("kabar") || lower.includes("dimana") || lower.includes("di mana")) {
+      if (archetype === "tsundere_cool") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Lagi istirahat. Kamu sendiri lagi ngapain?`,
+            `Baru kelar latihan koreo. Kamu jangan lupa makan juga.`,
+            `Lagi santai dengerin lagu. Gak ada kegiatan lain kok.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "chaos_savage") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Lagi mikirin cara nge-prank anak-anak wkwk. Mau ikutan gak nih?`,
+            `Lagi makan es krim dong, kamu mau? Gak boleh wleee 😝`,
+            `Lagi kepo kamu lagi ngapain wkwk! Ayo tebak aku lagi di mana?`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "dad_jokes_warm") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Ini lagi santai sambil mikir tebak-tebakan baru hehe. Mau denger gak?`,
+            `Habis latihan nih, lumayan pegel tapi tetap ceria dong pastinya! Kamu lagi ngapain?`,
+            `Lagi selonjoran di backstage sambil cek HP. Pas banget chat kamu masuk hehe.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "slay_gaul") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Lagi dengerin lagu sambil me time slay wkwk. Kamu lagi sibuk apa nih bestie?`,
+            `Biasa lah ya, lagi santai di ruang tunggu. Spill dong kegiatan kamu hari ini!`,
+            `Lagi nongkrong santai bareng anak-anak nih. Kamu lagi di mana sekarang?`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "social_butterfly") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Wah lagi heboh banget di backstage bareng anak-anak!! Rame banget pokoknya, seru!`,
+            `Lagi persiapan latihan lagi nih, tapi nyempetin bales chat kamu dulu hehe! Kamu lagi apa?!`,
+            `Ini lagi cerita-cerita seru sama member lain! Kamu sendiri gimana kabarnya hari ini?!`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "polos_cute") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Lagi duduk sambil minum susu... Kakak lagi ngapain?`,
+            `Lagi ngeliatin langit hehe... Bagus banget cuacanya hari ini.`,
+            `Habis selesai beres-beres tas Kak... Sekarang lagi santai.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "wibu_gamer") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Lagi push rank tipis-tipis nih, mau ikutan mabar gak?`,
+            `Lagi maraton nonton anime nih hehe, seru banget ceritanya! Kamu lagi apa bro?`,
+            `Lagi build item karakter di game nih wkwk. Kamu hari ini sibuk apa?`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "trainee_school") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Ini lagi ngafalin koreo dance baru Kak, lumayan susah tapi aku semangat terus!`,
+            `Baru beres ngerjain tugas sekolah tadi Kak hehe. Sekarang lagi istirahat!`,
+            `Lagi latihan vokal bareng temen-temen trainee Kak. Kakak sendiri lagi apa?`
+          ])),
+          isSimulated: true
+        };
+      }
       return {
         success: true,
         text: limitEmojis(pickBest([
-          `Semangat yaa buat kerjaan atau tugasnya! Jangan lupa minum air putih biar tetap fokus. Masih banyak yang harus dikerjain?`,
-          `Wah lagi sibuk kerja/tugas ya? Fokus dulu gih, jangan sampai kecapekan yaa${uNameComma}. Nanti kabarin aku lagi kalau udah beres ya?`,
-          `Gas pol terus yaa! Tapi inget jangan telat makan. Mau ditemenin ngobrol terus kan biar gak jenuh?`
+          `Lagi selonjoran di backstage nih, lumayan pegel habis latihan koreo bareng member lain. Tapi seru! Kamu sendiri lagi ngapain nih?`,
+          `Ini lagi santai sambil dengerin musik di ruang tunggu. Pas banget notif dari kamu muncul hehe. Kamu lagi di rumah atau di luar?`,
+          `Alhamdulillah kabar baik dan sehat dong! Lagi persiapan buat kegiatan nanti sore. Kalau kamu hari ini gimana kabarnya?`,
+          `Lagi istirahat sejenak nih bareng member lain sambil ngemil. Kamu sendiri udah makan belum jam segini?`
         ])),
         isSimulated: true
       };
     }
 
-    if (lower.includes("semangat")) {
-      return {
-        success: true,
-        text: limitEmojis(pickBest([
-          `Makasih banyak yaa semangatnya! Kamu juga harus selalu ceria dan kuat hari ini. Rencana kamu setelah ini mau ngapain nih?`,
-          `Aamiin! Makasih support-nya yaa, kita sama-sama saling semangatin terus. Janji?`
-        ])),
-        isSimulated: true
-      };
-    }
-
-    // 14. Theater & JKT48 Performance ("theater", "show", "setlist", "stage", "seifuku", "lagu")
-    if (lower.includes("theater") || lower.includes("teater") || lower.includes("show") || lower.includes("stage") || lower.includes("setlist") || lower.includes("seifuku") || lower.includes("lagu") || lower.includes("tiket") || lower.includes("2shot") || lower.includes("two-shot")) {
-      return {
-        success: true,
-        text: limitEmojis(pickBest([
-          `Wah kamu kapan ada rencana nonton theater lagi? Nanti kalau nonton bawa lightstick warna apa nih?`,
-          `Setlist sekarang koreografinya beneran enerjik banget! Kamu paling suka lagu apa di setlist ini?`,
-          `Iya nih, momen di theater itu paling seru karena bisa interaksi langsung sama kamu. Kamu udah pernah dapet verif belum belakangan ini?`
-        ])),
-        isSimulated: true
-      };
-    }
-
-    // 15. Pesan Singkat Fallback (cleanWords.length <= 3 atau lower.length < 18)
+    // 8. Pesan Singkat Fallback (cleanWords.length <= 3 atau lower.length < 18)
     if (cleanWords.length <= 3 || lower.length < 18) {
+      if (archetype === "tsundere_cool") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Hm gitu ya. Menarik sih.`,
+            `Oh ya? Terus?`,
+            `Singkat amat ngetiknya. Lagi sibuk ya?`,
+            `Ya udah, santai aja.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "chaos_savage") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Hahaha apaan sih pendek amat chatnya wkwk! 😝`,
+            `Dih ngetik cuma segitu doang? Kurang panjang wkwk!`,
+            `Wkwk singkat padat dan tidak jelas! Lanjutin dong ceritanya!`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "slay_gaul") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Singkat amat bestie wkwk! Cerita lebih banyak dong.`,
+            `Yoi dong, paham banget aku maksud kamu say.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "polos_cute" || archetype === "trainee_school") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Hehe iya Kak... Terus gimana lagi ceritanya?`,
+            `Aku dengerin kok Kakak... Ceritain lagi dong hehe.`,
+            `Seru banget Kak denger ceritanya... Lanjut dong hehe.`
+          ])),
+          isSimulated: true
+        };
+      }
       return {
         success: true,
         text: limitEmojis(pickBest([
-          `Eh, cuma manggil atau ngomong gitu doang nih? Penasaran deh wkwk. Lanjutin dong, ada cerita apa lagi?`,
+          `Eh, cuma ngomong gitu doang nih? Penasaran deh wkwk. Lanjutin dong, ada cerita apa lagi?`,
           `Hehe singkat banget chatnya! Lagi sibuk sambil ngetik ya? Kamu lagi ngerjain apa nih sekarang?`,
           `Iyaa terus gimana kelanjutannya? Coba ceritain lebih banyak dong, ${memberName} lagi siap dengerin nih!`,
           `Kok pendek amat chatnya wkwk. Ada yang lagi dipikirin ya? Cerita ke aku gih, jangan sungkan!`
@@ -856,7 +1493,97 @@ ATURAN KHUSUS CHAT PERSONAL JKT48 PRIVATE MESSAGE:
       };
     }
 
-    // 16. Pesan Panjang Fallback (>= 4 kata)
+    // 9. Pesan Panjang Fallback (>= 4 kata)
+    if (archetype === "tsundere_cool") {
+      return {
+        success: true,
+        text: limitEmojis(pickBest([
+          `Hm, gitu ya. Menarik juga sih sudut pandang kamu.`,
+          `Aku baca kok semuanya. Bagus deh kalau kamu udah bisa nyelesaiin itu.`,
+          `Gak usah dipikirin terlalu berat. Santai aja, jalanin pelan-pelan.`,
+          `Menarik ceritamu. Cerita aja lagi kalau ada hal lain.`
+        ])),
+        isSimulated: true
+      };
+    }
+    if (archetype === "chaos_savage") {
+      return {
+        success: true,
+        text: limitEmojis(pickBest([
+          `Hahaha seriusan Kak? Kok bisa gitu sih wkwk! Lucu banget ceritanya!`,
+          `Wkwk ada-ada aja kelakuan kamu! Ceritain lebih banyak dong, aku lagi penasaran nih!`,
+          `Dih beneran? Jangan bohongin aku lho wkwk 😝 Terus gimana tuh kelanjutannya?`
+        ])),
+        isSimulated: true
+      };
+    }
+    if (archetype === "dad_jokes_warm") {
+      return {
+        success: true,
+        text: limitEmojis(pickBest([
+          `Wah gitu yaa? Menarik deh cerita kamu! Eh ngomong-ngomong aku ada cerita lucu juga lho hehe.`,
+          `Hehe iya juga ya! Seneng deh bisa tukar cerita panjang gini sama kamu.`,
+          `Seru banget denger sudut pandang kamu! Kalau aku di posisi itu mungkin udah bingung wkwk.`
+        ])),
+        isSimulated: true
+      };
+    }
+    if (archetype === "slay_gaul") {
+      return {
+        success: true,
+        text: limitEmojis(pickBest([
+          `No debat sih itu emang relate banget say wkwk! Terus lanjutannya gimana?`,
+          `Jujurly seru banget denger cerita kamu! Cerita lagi dong bestie, aku dengerin nih.`,
+          `Slay banget cara kamu ngadepin itu! Keren abis deh pokoknya.`
+        ])),
+        isSimulated: true
+      };
+    }
+    if (archetype === "social_butterfly") {
+      return {
+        success: true,
+        text: limitEmojis(pickBest([
+          `WAHHH SERU BANGET CERITANYA!! Terus terus gimana lagi kelanjutannya?! Aku penasaran nih!`,
+          `Aduh asik banget denger cerita kamu!! Lanjutin dong, aku siap dengerin semuanya sampai selesai!!`,
+          `Wah gila sih itu seru banget!! Kamu emang selalu punya cerita menarik deh hehe!`
+        ])),
+        isSimulated: true
+      };
+    }
+    if (archetype === "polos_cute") {
+      return {
+        success: true,
+        text: limitEmojis(pickBest([
+          `Wah gitu ya Kak... Hehe aku dengerin kok, ceritain lagi yaa Kak kalau masih ada cerita seru.`,
+          `Seneng banget bisa nemenin Kakak ngobrol... Ceritain lagi yaa kalau ada cerita seru hehe.`,
+          `Kakak hebat banget yaa... Lily suka denger cerita Kakak.`
+        ])),
+        isSimulated: true
+      };
+    }
+    if (archetype === "wibu_gamer") {
+      return {
+        success: true,
+        text: limitEmojis(pickBest([
+          `Wah plot twist banget ceritanya kayak di anime wkwk! Lanjut dong ceritanya bro.`,
+          `Anjay seru juga tuh! Terus kelanjutannya gimana senpai?`,
+          `Gokil sih alur ceritanya, berasa nonton episode klimaks wkwk!`
+        ])),
+        isSimulated: true
+      };
+    }
+    if (archetype === "trainee_school") {
+      return {
+        success: true,
+        text: limitEmojis(pickBest([
+          `Wah gitu ya Kakak! Keren banget hehe, aku seneng denger cerita Kakak!`,
+          `Iya Kakak, ceritain lagi dong Kak, seru banget didengernya!`,
+          `Makasih yaa Kakak udah mau cerita ke aku hehe, seneng banget bisa nemenin Kakak ngobrol!`
+        ])),
+        isSimulated: true
+      };
+    }
+
     return {
       success: true,
       text: limitEmojis(pickBest([
@@ -869,4 +1596,5 @@ ATURAN KHUSUS CHAT PERSONAL JKT48 PRIVATE MESSAGE:
       isSimulated: true
     };
   }
+
 };

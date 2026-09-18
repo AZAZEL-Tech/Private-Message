@@ -23,33 +23,41 @@ export const AI_MODELS = [
     badge: "Pro"
   },
 
-  // Groq Cloud AI Models
+  // Groq Cloud AI Models (Public & Terbuka untuk Semua Akun)
   {
-    id: "llama-3.3-70b-versatile",
+    id: "openai/gpt-oss-120b",
     provider: "groq",
-    name: "Llama 3.3 70B Versatile (Groq)",
-    description: "Model open-source terbesar & natural di katalog Groq",
+    name: "GPT OSS 120B (Groq)",
+    description: "Model 120B tercanggih di Groq, sangat pintar & natural",
+    recommended: true,
     badge: "Groq Terbaik"
-  },
-  {
-    id: "deepseek-r1-distill-llama-70b",
-    provider: "groq",
-    name: "DeepSeek R1 Distill 70B (Groq)",
-    description: "Ekspresif dengan penalaran emosional mendalam",
-    badge: "Groq Populer"
   },
   {
     id: "openai/gpt-oss-20b",
     provider: "groq",
-    name: "openai/gpt-oss-20b (Groq)",
-    description: "Sesuai bawaan aplikasi referensi XIdol",
-    badge: "Bawaan XIdol"
+    name: "GPT OSS 20B (Groq)",
+    description: "Model resmi bawaan XIdol, super kilat (<0.4 detik) & responsif",
+    badge: "Super Cepat"
   },
   {
-    id: "qwen/qwen3.6-27b",
+    id: "qwen/qwen3.8-27b",
     provider: "groq",
-    name: "qwen/qwen3.6-27b (Groq)",
-    description: "Katalog model Qwen di cloud Groq",
-    badge: "Groq Cepat"
+    name: "Qwen 3.8 27B (Groq)",
+    description: "Model Alibaba Cloud di Groq, luwes & ekspresif",
+    badge: "Cerdas"
+  },
+  {
+    id: "llama-3.3-70b-versatile",
+    provider: "groq",
+    name: "Llama 3.3 70B (Khusus Enterprise)",
+    description: "Hanya untuk akun Groq yang memiliki izin Enterprise",
+    badge: "Enterprise"
+  },
+  {
+    id: "llama-3.1-8b-instant",
+    provider: "groq",
+    name: "Llama 3.1 8B (Khusus Enterprise)",
+    description: "Hanya untuk akun Groq yang memiliki izin Enterprise",
+    badge: "Enterprise"
   }
 ];

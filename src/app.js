@@ -4,6 +4,7 @@ import { AI_MODELS } from "./data/models.js";
 import { Storage } from "./services/storage.js";
 import { AIService } from "./services/aiService.js";
 import { soundEffects } from "./services/soundEffects.js";
+import { PapService } from "./services/papService.js";
 
 // Global App State
 const state = {
@@ -411,7 +412,10 @@ function openChatRoom(memberId) {
   if (chatRoomNavStatus) {
     chatRoomNavStatus.textContent = member.online ? `Online • ${aiBadge}` : member.lastSeen;
   }
-  if (chatRoomPapBadge) chatRoomPapBadge.innerHTML = `📸 PAP ${member.papsRemaining}/4`;
+  if (chatRoomPapBadge) {
+    const photoCount = PapService.getPhotoCount(member.id);
+    chatRoomPapBadge.innerHTML = photoCount > 0 ? `📸 PAP (${photoCount})` : `📸 PAP`;
+  }
 
   // Streak calculation & badge display
   updateChatRoomStreakBadge(member);
@@ -505,9 +509,9 @@ function renderChatMessages(member) {
     let contentHtml = "";
     if (msg.isPhoto) {
       contentHtml = `
-        <div class="chat-bubble-photo-wrap">
+        <div class="chat-bubble-photo-wrap" data-photo-url="${escapeHtml(msg.photoUrl || '')}" data-photo-title="${escapeHtml(msg.text || 'Foto PAP Spesial 📸')}" data-photo-time="${escapeHtml(msg.time || '')}" title="Klik untuk memperbesar foto 📸">
           <img class="chat-bubble-photo" src="${msg.photoUrl}" alt="PAP Photo" loading="lazy" />
-          <div class="chat-bubble-photo-title">${msg.text || "Foto PAP Spesial 📸"}</div>
+          <div class="chat-bubble-photo-title">${escapeHtml(msg.text || "Foto PAP Spesial 📸")}</div>
         </div>
       `;
     } else {
@@ -596,7 +600,62 @@ async function handleSendMessage() {
       console.warn("Streak tracking error:", err);
     }
 
-    // 4. Show Typing Indicator
+    // 4. Deteksi apakah pesan meminta PAP atau foto member
+    if (PapService.isPapRequest(text)) {
+      state.isTyping = true;
+      showTypingIndicator();
+      const chatRoomNavStatus = getEl("chat-nav-status");
+      if (chatRoomNavStatus) chatRoomNavStatus.textContent = "sedang menyiapkan foto...";
+
+      setTimeout(() => {
+        hideTypingIndicator();
+        state.isTyping = false;
+
+        if (chatRoomNavStatus) {
+          const curKey = Storage.getApiKey();
+          const curProv = Storage.getAiProvider();
+          const badge = curKey ? `✨ ${curProv === "gemini" ? "Gemini AI" : "Groq AI"}` : "📱 Mode Offline";
+          chatRoomNavStatus.textContent = member.online ? `Online • ${badge}` : member.lastSeen;
+        }
+
+        const photoUrl = PapService.getRandomPhoto(member);
+        const caption = PapService.getRandomCaption(member);
+
+        const replyNow = new Date();
+        const replyTimeStr = `${String(replyNow.getHours()).padStart(2, "0")}:${String(replyNow.getMinutes()).padStart(2, "0")}`;
+
+        const papMsg = {
+          id: `msg_pap_${Date.now()}`,
+          text: caption,
+          isUser: false,
+          time: replyTimeStr,
+          date: "HARI INI",
+          isPhoto: true,
+          photoUrl: photoUrl
+        };
+
+        try {
+          soundEffects.playCameraShutter();
+        } catch (err) {
+          console.warn("Camera shutter sound error:", err);
+        }
+
+        showToast(`Menerima foto PAP dari ${getMemberDisplayName(member)}! 📸`, "📷");
+        Storage.saveChatMessage(member.id, papMsg);
+        renderChatMessages(member);
+        if (msgArea) {
+          msgArea.scrollTop = msgArea.scrollHeight;
+          requestAnimationFrame(() => {
+            msgArea.scrollTop = msgArea.scrollHeight;
+          });
+        }
+        renderChatList();
+      }, 1400);
+
+      return;
+    }
+
+    // 5. Show Typing Indicator for Normal Text
     state.isTyping = true;
     showTypingIndicator();
     const chatRoomNavStatus = getEl("chat-nav-status");
@@ -697,27 +756,55 @@ function handleRequestPap() {
   const member = MEMBERS.find(m => m.id === state.activeMemberId);
   if (!member || state.isTyping) return;
 
-  soundEffects.playCameraShutter();
-  const randomPhoto = member.photos[Math.floor(Math.random() * member.photos.length)];
-  const now = new Date();
-  const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  state.isTyping = true;
+  showTypingIndicator();
+  const chatRoomNavStatus = getEl("chat-nav-status");
+  if (chatRoomNavStatus) chatRoomNavStatus.textContent = "sedang menyiapkan foto...";
 
-  const papMsg = {
-    id: `msg_pap_${Date.now()}`,
-    text: randomPhoto.title || `Foto PAP spesial dari ${getMemberDisplayName(member)} 📸`,
-    isUser: false,
-    time: timeStr,
-    date: "HARI INI",
-    isPhoto: true,
-    photoUrl: randomPhoto.url
-  };
+  setTimeout(() => {
+    hideTypingIndicator();
+    state.isTyping = false;
 
-  showToast(`Menerima foto PAP dari ${getMemberDisplayName(member)}! 📸`, "📷");
-  Storage.saveChatMessage(member.id, papMsg);
-  renderChatMessages(member);
-  const msgArea = getEl("chat-messages-area");
-  if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
-  renderChatList();
+    if (chatRoomNavStatus) {
+      const curKey = Storage.getApiKey();
+      const curProv = Storage.getAiProvider();
+      const badge = curKey ? `✨ ${curProv === "gemini" ? "Gemini AI" : "Groq AI"}` : "📱 Mode Offline";
+      chatRoomNavStatus.textContent = member.online ? `Online • ${badge}` : member.lastSeen;
+    }
+
+    const photoUrl = PapService.getRandomPhoto(member);
+    const caption = PapService.getRandomCaption(member);
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+    const papMsg = {
+      id: `msg_pap_${Date.now()}`,
+      text: caption,
+      isUser: false,
+      time: timeStr,
+      date: "HARI INI",
+      isPhoto: true,
+      photoUrl: photoUrl
+    };
+
+    try {
+      soundEffects.playCameraShutter();
+    } catch (err) {
+      console.warn("Camera shutter sound error:", err);
+    }
+
+    showToast(`Menerima foto PAP dari ${getMemberDisplayName(member)}! 📸`, "📷");
+    Storage.saveChatMessage(member.id, papMsg);
+    renderChatMessages(member);
+    const msgArea = getEl("chat-messages-area");
+    if (msgArea) {
+      msgArea.scrollTop = msgArea.scrollHeight;
+      requestAnimationFrame(() => {
+        msgArea.scrollTop = msgArea.scrollHeight;
+      });
+    }
+    renderChatList();
+  }, 1000);
 }
 
 // Typing Indicator Helpers
@@ -934,6 +1021,38 @@ function closeMemberInfoModal() {
 }
 
 // =============================================================================
+// PHOTO LIGHTBOX MODAL
+// =============================================================================
+function openPhotoLightbox(photoUrl, caption, memberName, timeStr) {
+  const modalEl = getEl("photo-lightbox-modal");
+  const imgEl = getEl("photo-lightbox-img");
+  const captionEl = getEl("photo-lightbox-caption");
+  const senderEl = getEl("photo-lightbox-sender");
+  const timeEl = getEl("photo-lightbox-time");
+  const downloadBtn = getEl("photo-lightbox-download-btn");
+
+  if (!modalEl || !imgEl) return;
+
+  imgEl.src = photoUrl;
+  if (captionEl) captionEl.textContent = caption || "Foto PAP Spesial 📸";
+  if (senderEl) senderEl.textContent = memberName || "Member JKT48";
+  if (timeEl) timeEl.textContent = timeStr || "";
+  if (downloadBtn) {
+    downloadBtn.href = photoUrl;
+    downloadBtn.download = `${(memberName || "jkt48").toLowerCase().replace(/\s+/g, "_")}_pap.jpg`;
+  }
+
+  modalEl.style.display = "flex";
+  document.body.style.overflow = "hidden";
+}
+
+function closePhotoLightbox() {
+  const modalEl = getEl("photo-lightbox-modal");
+  if (modalEl) modalEl.style.display = "none";
+  document.body.style.overflow = "";
+}
+
+// =============================================================================
 // STORIES & STATUS VIEWER
 // =============================================================================
 function renderUpdatesList() {
@@ -1043,22 +1162,51 @@ function closeStoryViewer() {
 // =============================================================================
 // SETTINGS & AI CONFIGURATION
 // =============================================================================
-function renderSettingsForm() {
-  const provider = Storage.getAiProvider();
-  const apiKey = Storage.getApiKey();
-  const currentModel = Storage.getSelectedModel();
-  const profile = Storage.getUserProfile();
-
+function applyProviderUI(provider) {
   const providerSelect = getEl("ai-provider-select");
-  if (providerSelect) providerSelect.value = provider;
+  if (providerSelect && providerSelect.value !== provider) {
+    providerSelect.value = provider;
+  }
+
+  updateModelsDropdown(provider);
+
+  const currentModel = Storage.getSelectedModel(provider);
+  const modelSelect = getEl("groq-model-select");
+  if (modelSelect) modelSelect.value = currentModel;
+
+  const keyLabel = getEl("api-key-label");
+  const keySubtext = getEl("api-key-subtext");
+  const tutorialTitle = getEl("tutorial-title");
+  const tutorialGemini = getEl("tutorial-gemini-content");
+  const tutorialGroq = getEl("tutorial-groq-content");
+  const keyInput = getEl("groq-api-key-input");
+
+  if (provider === "gemini") {
+    if (keyLabel) keyLabel.textContent = "Google Gemini API Key";
+    if (keySubtext) keySubtext.textContent = "Dapatkan di Google AI Studio (aistudio.google.com)";
+    if (keyInput) keyInput.placeholder = "AIzaSy...";
+    if (tutorialTitle) tutorialTitle.textContent = "Cara Dapatkan Google Gemini API Key (Gratis):";
+    if (tutorialGemini) tutorialGemini.style.display = "block";
+    if (tutorialGroq) tutorialGroq.style.display = "none";
+  } else {
+    if (keyLabel) keyLabel.textContent = "Groq Cloud API Key";
+    if (keySubtext) keySubtext.textContent = "Dapatkan di console.groq.com/keys (Gratis, Kilat & Tanpa Batas Limit)";
+    if (keyInput) keyInput.placeholder = "gsk_...";
+    if (tutorialTitle) tutorialTitle.textContent = "Cara Dapatkan Groq API Key (Gratis & Kilat):";
+    if (tutorialGemini) tutorialGemini.style.display = "none";
+    if (tutorialGroq) tutorialGroq.style.display = "block";
+  }
+}
+
+function renderSettingsForm() {
+  const apiKey = Storage.getApiKey();
+  const provider = AIService.getProvider(apiKey);
+  const profile = Storage.getUserProfile();
 
   const keyInput = getEl("groq-api-key-input");
   if (keyInput) keyInput.value = apiKey;
 
-  updateModelsDropdown(provider);
-
-  const modelSelect = getEl("groq-model-select");
-  if (modelSelect) modelSelect.value = currentModel;
+  applyProviderUI(provider);
 
   const nameInput = getEl("profile-name-input");
   if (nameInput) nameInput.value = profile.name || "Fans JKT48";
@@ -1125,38 +1273,23 @@ function setupEventListeners() {
   // AI Provider change listener
   getEl("ai-provider-select")?.addEventListener("change", (e) => {
     const provider = e.target.value;
-    updateModelsDropdown(provider);
-    const keyLabel = getEl("api-key-label");
-    const keySubtext = getEl("api-key-subtext");
-    const tutorialTitle = getEl("tutorial-title");
-    const tutorialGemini = getEl("tutorial-gemini-content");
-    const tutorialGroq = getEl("tutorial-groq-content");
-
-    if (provider === "gemini") {
-      if (keyLabel) keyLabel.textContent = "Google Gemini API Key";
-      if (keySubtext) keySubtext.textContent = "Dapatkan di Google AI Studio (aistudio.google.com)";
-      if (tutorialTitle) tutorialTitle.textContent = "Cara Dapatkan Google Gemini API Key (Gratis):";
-      if (tutorialGemini) tutorialGemini.style.display = "block";
-      if (tutorialGroq) tutorialGroq.style.display = "none";
-    } else {
-      if (keyLabel) keyLabel.textContent = "Groq Cloud API Key";
-      if (keySubtext) keySubtext.textContent = "Dapatkan di console.groq.com/keys";
-      if (tutorialTitle) tutorialTitle.textContent = "Cara Dapatkan Groq API Key (Gratis):";
-      if (tutorialGemini) tutorialGemini.style.display = "none";
-      if (tutorialGroq) tutorialGroq.style.display = "block";
+    Storage.setAiProvider(provider);
+    applyProviderUI(provider);
+    const modelSelect = getEl("groq-model-select");
+    if (modelSelect && modelSelect.value) {
+      Storage.setSelectedModel(modelSelect.value);
     }
   });
 
   // Auto-detect key format
   getEl("groq-api-key-input")?.addEventListener("input", (e) => {
     const val = e.target.value.trim();
-    const providerSelect = getEl("ai-provider-select");
-    if (val.startsWith("AIza") && providerSelect && providerSelect.value !== "gemini") {
-      providerSelect.value = "gemini";
-      updateModelsDropdown("gemini");
-    } else if (val.startsWith("gsk_") && providerSelect && providerSelect.value !== "groq") {
-      providerSelect.value = "groq";
-      updateModelsDropdown("groq");
+    if (val.startsWith("AIza") || val.startsWith("AQ.")) {
+      Storage.setAiProvider("gemini");
+      applyProviderUI("gemini");
+    } else if (val.startsWith("gsk_")) {
+      Storage.setAiProvider("groq");
+      applyProviderUI("groq");
     }
   });
 
@@ -1230,9 +1363,31 @@ function setupEventListeners() {
     e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
   });
 
-  // PAP Badge click
+  // PAP Badge & Camera button click
   getEl("chat-nav-pap")?.addEventListener("click", handleRequestPap);
   getEl("chat-camera-btn")?.addEventListener("click", handleRequestPap);
+
+  // Photo Lightbox event listeners
+  getEl("photo-lightbox-close-btn")?.addEventListener("click", closePhotoLightbox);
+  getEl("photo-lightbox-backdrop")?.addEventListener("click", closePhotoLightbox);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closePhotoLightbox();
+  });
+
+  // Delegasi klik foto di bubble chat untuk membuka lightbox
+  const chatMsgArea = getEl("chat-messages-area");
+  if (chatMsgArea) {
+    chatMsgArea.addEventListener("click", (e) => {
+      const photoWrap = e.target.closest(".chat-bubble-photo-wrap");
+      if (photoWrap) {
+        const photoUrl = photoWrap.dataset.photoUrl || photoWrap.querySelector("img")?.src;
+        const caption = photoWrap.dataset.photoTitle || photoWrap.querySelector(".chat-bubble-photo-title")?.textContent;
+        const time = photoWrap.dataset.photoTime || "";
+        const member = MEMBERS.find(m => m.id === state.activeMemberId);
+        openPhotoLightbox(photoUrl, caption, member ? getMemberDisplayName(member) : "Member JKT48", time);
+      }
+    });
+  }
 
   // Story close & reply
   getEl("story-close-btn")?.addEventListener("click", closeStoryViewer);
@@ -1308,16 +1463,6 @@ function setupEventListeners() {
     }, 700);
   });
 
-  // Auto-save provider change
-  getEl("ai-provider-select")?.addEventListener("change", (e) => {
-    const newProv = e.target.value;
-    Storage.setAiProvider(newProv);
-    updateModelsDropdown(newProv);
-    const modelSelect = getEl("groq-model-select");
-    if (modelSelect && modelSelect.value) {
-      Storage.setSelectedModel(modelSelect.value);
-    }
-  });
 
   // Auto-save model change
   getEl("groq-model-select")?.addEventListener("change", (e) => {
@@ -1338,6 +1483,11 @@ function setupEventListeners() {
     }
 
     const res = await AIService.testConnection(apiKey, model, provider);
+    const modelSelect = getEl("groq-model-select");
+    if (res.switchedModel && modelSelect) {
+      modelSelect.value = res.switchedModel;
+      Storage.setSelectedModel(res.switchedModel);
+    }
     if (testResultEl) {
       testResultEl.textContent = res.message;
       testResultEl.style.color = res.success ? "#16A34A" : "#DC2626";
@@ -1386,15 +1536,22 @@ function setupEventListeners() {
 
       if (saveBtn) saveBtn.textContent = "Simpan & Aktifkan";
 
+      const modelSelect = getEl("groq-model-select");
+      if (res.switchedModel && modelSelect) {
+        modelSelect.value = res.switchedModel;
+        Storage.setSelectedModel(res.switchedModel);
+      }
+
       if (testResultEl) {
         testResultEl.textContent = res.message;
         testResultEl.style.color = res.success ? "#16A34A" : "#DC2626";
       }
 
+      const provName = provider === "gemini" ? "Google Gemini AI" : "Groq Cloud AI";
       if (res.success) {
-        showToast("Google Gemini AI Berhasil Terhubung & Aktif! ✨", "✅");
+        showToast(`${provName} Berhasil Terhubung & Aktif! ✨`, "✅");
       } else {
-        showToast(`Kunci tersimpan, tapi Google menolak: ${res.message}`, "⚠️");
+        showToast(`Kunci tersimpan, tapi ${provName} gagal: ${res.message}`, "⚠️");
       }
     } else {
       if (testResultEl) {

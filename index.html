@@ -13,9 +13,9 @@
   <meta http-equiv="Expires" content="0" />
   
   <!-- Stylesheets -->
-  <link rel="stylesheet" href="src/styles/ios-base.css?v=20260917_03" />
-  <link rel="stylesheet" href="src/styles/whatsapp.css?v=20260917_03" />
-  <link rel="stylesheet" href="src/styles/iphone-frame.css?v=20260917_03" />
+  <link rel="stylesheet" href="src/styles/ios-base.css?v=20260918_pap" />
+  <link rel="stylesheet" href="src/styles/whatsapp.css?v=20260918_pap" />
+  <link rel="stylesheet" href="src/styles/iphone-frame.css?v=20260918_pap" />
 </head>
 <body>
 
@@ -247,8 +247,8 @@
                 <div class="ios-cell-title">Penyedia AI (Provider)</div>
                 <div class="ios-cell-subtitle">Pilih Gemini API atau Groq Cloud API</div>
                 <select class="ios-select" id="ai-provider-select">
-                  <option value="gemini">Google Gemini API (Direkomendasikan - Nyambung & Ekspresif)</option>
-                  <option value="groq">Groq Cloud API (Llama, DeepSeek, Qwen, GPT-OSS)</option>
+                  <option value="groq">Groq Cloud AI (Rekomendasi: Llama 3.3 70B, Kilat & Bebas Limit)</option>
+                  <option value="gemini">Google Gemini API (Gemini 3.6 Flash)</option>
                 </select>
               </div>
             </div>
@@ -425,7 +425,7 @@
         <div class="chat-gemini-banner" id="chat-gemini-banner" style="display: none;">
           <div class="chat-gemini-banner-info">
             <span class="chat-gemini-sparkle">✨</span>
-            <span class="chat-gemini-text">Mode Offline. Masukkan <strong>Gemini API Key</strong> agar chat pintar, ekspresif & nyambung real-time!</span>
+            <span class="chat-gemini-text">Mode Offline. Masukkan <strong>API Key (Groq / Gemini)</strong> agar chat pintar, ekspresif & nyambung real-time!</span>
           </div>
           <button class="chat-gemini-banner-btn" id="btn-setup-gemini">Pasang Key 🔑</button>
         </div>
@@ -493,6 +493,33 @@
           <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
         </svg>
       </button>
+    </div>
+  </div>
+
+  <!-- MODAL: PHOTO LIGHTBOX VIEWER -->
+  <div class="photo-lightbox-modal" id="photo-lightbox-modal" style="display: none;">
+    <div class="photo-lightbox-backdrop" id="photo-lightbox-backdrop"></div>
+    <div class="photo-lightbox-container">
+      <div class="photo-lightbox-header">
+        <div class="photo-lightbox-info">
+          <span class="photo-lightbox-member-name" id="photo-lightbox-sender">Member</span>
+          <span class="photo-lightbox-time" id="photo-lightbox-time">00:00</span>
+        </div>
+        <div class="photo-lightbox-actions">
+          <a class="photo-lightbox-btn" id="photo-lightbox-download-btn" href="#" download="jkt48-pap.jpg" title="Unduh Foto">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+          </a>
+          <button class="photo-lightbox-btn" id="photo-lightbox-close-btn" title="Tutup">✕</button>
+        </div>
+      </div>
+      <div class="photo-lightbox-img-wrap">
+        <img class="photo-lightbox-img" id="photo-lightbox-img" src="" alt="PAP Foto" />
+      </div>
+      <div class="photo-lightbox-caption" id="photo-lightbox-caption">Caption Foto 📸</div>
     </div>
   </div>
 
@@ -588,6 +615,6 @@
   </div>
 
   <!-- JavaScript Modules -->
-  <script type="module" src="src/app.js?v=20260917_09"></script>
+  <script type="module" src="src/app.js?v=20260918_pap"></script>
 </body>
 </html>

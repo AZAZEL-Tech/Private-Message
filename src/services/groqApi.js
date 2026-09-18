@@ -4,7 +4,7 @@ import { limitEmojis } from "./aiService.js";
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 
 export const GroqService = {
-  async testConnection(apiKey, modelId = "llama-3.3-70b-versatile") {
+  async testConnection(apiKey, modelId = "openai/gpt-oss-120b") {
     if (!apiKey || !apiKey.trim()) {
       return { success: false, message: "API key Groq tidak boleh kosong!" };
     }
