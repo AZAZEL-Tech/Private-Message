@@ -25,19 +25,19 @@ export const AI_MODELS = [
 
   // Groq Cloud AI Models (Public & Terbuka untuk Semua Akun)
   {
-    id: "openai/gpt-oss-120b",
-    provider: "groq",
-    name: "GPT OSS 120B (Groq)",
-    description: "Model 120B tercanggih di Groq, sangat pintar & natural",
-    recommended: true,
-    badge: "Groq Terbaik"
-  },
-  {
     id: "openai/gpt-oss-20b",
     provider: "groq",
     name: "GPT OSS 20B (Groq)",
-    description: "Model resmi bawaan XIdol, super kilat (<0.4 detik) & responsif",
-    badge: "Super Cepat"
+    description: "Model resmi tercepat & bebas limit kuota (30.000 TPM), super kilat",
+    recommended: true,
+    badge: "Rekomendasi Bebas Limit"
+  },
+  {
+    id: "openai/gpt-oss-120b",
+    provider: "groq",
+    name: "GPT OSS 120B (Groq)",
+    description: "Model 120B tercanggih di Groq (kuota ketat 8.000 TPM)",
+    badge: "Super Pintar"
   },
   {
     id: "qwen/qwen3.8-27b",

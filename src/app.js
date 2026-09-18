@@ -1,10 +1,10 @@
-import { MEMBERS } from "./data/members.js?v=20260917_09";
-import { STORIES_DATA } from "./data/stories.js?v=20260917_09";
-import { AI_MODELS } from "./data/models.js";
-import { Storage } from "./services/storage.js";
-import { AIService } from "./services/aiService.js";
-import { soundEffects } from "./services/soundEffects.js";
-import { PapService } from "./services/papService.js";
+import { MEMBERS } from "./data/members.js?v=20260918_v6";
+import { STORIES_DATA } from "./data/stories.js?v=20260918_v6";
+import { AI_MODELS } from "./data/models.js?v=20260918_v6";
+import { Storage } from "./services/storage.js?v=20260918_v6";
+import { AIService } from "./services/aiService.js?v=20260918_v6";
+import { soundEffects } from "./services/soundEffects.js?v=20260918_v6";
+import { PapService } from "./services/papService.js?v=20260918_v6";
 
 // Global App State
 const state = {
@@ -474,7 +474,7 @@ function renderChatMessages(member) {
     messages = [
       {
         id: `msg_init_${member.id}`,
-        text: member.lastMessage || `Halo! Selamat datang di room chat resmi ${member.name}! ✨ Senang banget bisa chatingan bareng kamu.`,
+        text: member.lastMessage || `Halo! Selamat datang di room chat resmi ${member.name}! Senang banget bisa chatingan bareng kamu.`,
         isUser: false,
         time: member.lastMessageTime || "10:30",
         date: "HARI INI",
@@ -693,7 +693,7 @@ async function handleSendMessage() {
       showToast(`⚠️ AI Error: ${aiErr.message}`, "⚠️");
       const rawName = userProfile?.name?.trim() || "";
       const userName = (rawName && rawName.toLowerCase() !== "fans jkt48") ? rawName : "kamu";
-      aiReplyText = `Hehe ${userName}, seru banget! Aku suka deh ngobrol sama kamu. Tetap semangat yaa! ✨`;
+      aiReplyText = `Hehe ${userName}, seru banget! Aku suka deh ngobrol sama kamu. Tetap semangat yaa!`;
     }
 
     // 6. Hide typing indicator before rendering reply
