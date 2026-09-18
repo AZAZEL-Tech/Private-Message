@@ -119,75 +119,85 @@ export const PapService = {
     const name = member?.shortName || member?.name || "aku";
     const archetype = getMemberArchetype(member);
 
+    // Honorific check for birth year
+    const birthDateStr = member?.birthDate || "";
+    const yearMatch = String(birthDateStr).match(/\b(\d{4})\b/);
+    const birthYear = yearMatch ? parseInt(yearMatch[1], 10) : 2005;
+    const isJunior2009Plus = birthYear >= 2009;
+    const uKakak = isJunior2009Plus ? "Kakak" : "kamu";
+
     if (archetype === "tsundere_cool") {
       const gitaCaptions = [
-        `Nih. Jangan disebar ya. 📸`,
-        `Hm, khusus buat kamu. Awas kalau disebar.`,
-        `Nih foto yang kamu minta. Udah ya. 📸`,
-        `Nih fotonya. Gak usah lebay mujinya ya.`
+        `Nih. Awas kalau disebar ke mana-mana ya wkwk 📸`,
+        `Nih fotonya. Gak usah lebay mujinya ya wkwk 📸`,
+        `Tuh udah aku kirim. Jangan dilihatin terus wkwk 📸`,
+        `Nih foto yang kamu minta. Khusus hari ini aja ya 📸`
       ];
       return gitaCaptions[Math.floor(Math.random() * gitaCaptions.length)];
     }
 
     if (archetype === "chaos_savage") {
       const christyCaptions = [
-        `Wleee nih foto spesial! Cantik kan aku? Hahaha 😝📸`,
-        `Nih PAP-nya! Jangan pingsan ya liatnya wkwk 📸`,
-        `Tadaaa! Foto eksklusif dari ${name} buat kamu 😝`,
-        `Nih foto imut! Awas kalau gak dijadiin wallpaper wkwk 📸`
+        `Tadaaa! Cantik kan aku? Hahaha awas kalau gak disimpen yaa 😝📸`,
+        `Nih PAP-nya! Jangan pingsan ya liat keimutan aku wkwk 📸`,
+        `Wleee nih foto spesial! Beliin es krim dulu gak sih 😝📸`,
+        `Nihh! Langsung jadiin wallpaper ya awas kalau nggak wkwk 📸✨`
       ];
       return christyCaptions[Math.floor(Math.random() * christyCaptions.length)];
     }
 
     if (archetype === "dad_jokes_warm") {
       const freyaCaptions = [
-        `Tadaaa! Foto hari ini ✨ Lucu gak? Hehe 📸`,
-        `Nihh fotoku! Jangan lupa senyum ya hari ini hehe ✨`,
-        `Foto spesial buat kamu! Pas banget tadi sempat selfie hehe 📸`,
-        `Nihh PAP hari ini! Semoga bisa bikin kamu semangat yaa ✨`
+        `Tadaaa! Nih foto hari ini hehe ✨ Lucu gak? Awas kalau bilang kayak lele wkwk 📸`,
+        `Nihh fotoku! Spesial buat kamu biar gak suntuk hehe ✨📸`,
+        `Foto spesial meluncur! Senyum dulu dong liat foto aku hehe 📸`,
+        `Nihh PAP hari ini! Semoga manjur jadi booster semangatmu yaa ✨📸`
       ];
       return freyaCaptions[Math.floor(Math.random() * freyaCaptions.length)];
     }
 
     if (archetype === "slay_gaul") {
       const ollaCaptions = [
-        `Slayyy nih PAP dari ${name}! Kece badai kan 💅📸`,
-        `Aduhh aesthetic banget kan foto aku! Simpen baik-baik ya say 📸`,
-        `Nih foto paling slay hari ini! Khusus buat bestie tercinta 💅✨`
+        `Slayyy nih PAP dari ${name}! Kece badai kan bestie 💅📸`,
+        `Aduhh aesthetic parah kan foto aku! Simpen baik-baik ya love 📸✨`,
+        `Nih foto paling slay hari ini! Khusus buat kamu nih 💅✨`
       ];
       return ollaCaptions[Math.floor(Math.random() * ollaCaptions.length)];
     }
 
     if (archetype === "social_butterfly") {
       const liaCaptions = [
-        `HALOOO! Nih nih nih foto aku yang paling ceria hari ini!! Simpen yaa!! 📸💖`,
-        `TADAAA! Energi positif lewat foto spesial dari ${name}!! 📸✨`,
-        `Nih fotonya udah meluncur!! Gimana, gemes banget kan?! Hehe 📸`
+        `HALOO! Nih nih nih foto aku hari ini!! Gimana, gemes banget kan?! Hehe 📸✨`,
+        `TADAAA! Nih foto paling ceria spesial buat kamu hehe!! 📸💖`,
+        `Nihh fotonya udah meluncur! Semoga nularin energi positif yaa!! 📸✨`,
+        `Hehe pas banget kamu minta! Nih aku kirim foto paling manis hari ini 📸💖`
       ];
       return liaCaptions[Math.floor(Math.random() * liaCaptions.length)];
     }
 
     if (archetype === "polos_cute") {
       const lilyCaptions = [
-        `Ini fotoku tadi Kak... Semoga Kakak suka yaa hehe 📸`,
-        `Foto spesial dari ${name} buat Kakak... hehe 📸`,
-        `Ini fotoku tadi... Jangan lupa disimpan yaa Kakak ✨`
+        `Nih fotoku tadi... Hehe malu banget sebenarnya, tapi semoga ${uKakak} suka yaa 📸✨`,
+        `Foto spesial dari ${name} buat ${uKakak}... jangan disebar yaa hehe 📸`,
+        `Ini fotoku tadi siang hehe... Disimpan baik-baik yaa ✨📸`,
+        `Tadaaa! Nih foto yang ${uKakak} minta hehe 📸`
       ];
       return lilyCaptions[Math.floor(Math.random() * lilyCaptions.length)];
     }
 
     if (archetype === "gentle_classic") {
       const lanaCaptions = [
-        `Ini fotoku... Semoga bisa membuat harimu lebih tenang dan menyenangkan yaa ✨📸`,
-        `Foto spesial untukmu, terima kasih sudah selalu mendukungku yaa 📸`,
-        `Semoga foto ini bisa menjadi penyemangat kecil untuk harimu yaa ✨`
+        `Nihh fotoku... Hehe baru sempat selfie tadi siang, jangan disebar yaa ✨📸`,
+        `Tadaaa! Ini foto yang kamu minta hehe, gimana menurut kamu? 📸✨`,
+        `Nih foto spesial buat kamu hehe! Semoga bikin kamu tersenyum yaa ✨`,
+        `Hehe nih fotonya... Khusus buat kamu yang nemenin aku ngobrol hari ini 📸✨`
       ];
       return lanaCaptions[Math.floor(Math.random() * lanaCaptions.length)];
     }
 
     if (archetype === "wibu_gamer") {
       const eliCaptions = [
-        `Sugoi gak nih selfie-ku? Wkwk simpen yaa senpai! 📸`,
+        `Sugoi gak nih selfie-ku? Wkwk simpen yaa senpai! 📸✨`,
         `Tadaaa! Karakter anime favoritmu hadir lewat foto ini hehe 📸`,
         `Nih loot drop berupa foto spesial buat kamu! GG kan? 📸✨`
       ];
@@ -196,20 +206,19 @@ export const PapService = {
 
     if (archetype === "trainee_school") {
       const traineeCaptions = [
-        `Ini foto aku tadi siang Kak... Maaf ya kalau masih agak canggung fotonya hehe 📸✨`,
-        `Spesial buat Kakak yang udah selalu semangatin aku! Disimpan yaa Kak 📸`,
-        `Nih foto aku hari ini Kak! Makasih yaa udah minta foto aku hehe ✨`
+        `Ini foto aku tadi siang Kak... Maaf ya kalau masih agak canggung hehe 📸✨`,
+        `Spesial buat Kakak yang udah selalu semangatin aku! Disimpan yaa Kak 📸✨`,
+        `Nih foto aku hari ini Kak! Makasih yaa udah minta foto aku hehe ✨📸`
       ];
       return traineeCaptions[Math.floor(Math.random() * traineeCaptions.length)];
     }
 
     const captions = [
-      `Nihh foto spesial dari ${name} buat kamu! 📸`,
-      `Tadaaa! Ini foto yang kamu minta, jangan lupa disimpan yaa ✨`,
-      `Hehe pas banget tadi aku sempat selfie, khusus buat kamu lho 💖`,
-      `Jangan disebar yaa, ini rahasia kita berdua hehe 🙈 📸`,
-      `Ini fotoku tadi sebelum kegiatan, gimana menurut kamu? ✌️`,
-      `Nihh PAP hari ini! Semangat terus yaa jalanin harinya! ✨`
+      `Nihh foto spesial dari ${name} buat kamu! Jangan disebar yaa hehe 📸✨`,
+      `Tadaaa! Ini foto yang kamu minta, gimana menurut kamu? Hehe 📸`,
+      `Hehe pas banget tadi aku sempat selfie, khusus buat kamu lho! ✨📸`,
+      `Nihh PAP hari ini! Seneng deh ada yang minta foto aku hehe 📸💖`,
+      `Ini fotoku tadi sebelum kegiatan hehe, disimpan baik-baik yaa! ✨📸`
     ];
     return captions[Math.floor(Math.random() * captions.length)];
   },

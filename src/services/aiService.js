@@ -48,7 +48,31 @@ export function cleanIdolReply(text, isJunior2009Plus = false, userName = "kamu"
     cleaned = cleaned.replace(/\bkamu\s+kamu\b/gi, "kamu");
   }
 
-  // 6.5. Strip formulaic trailing interrogation questions if there's already a substantive statement
+  // 6.5. Naturalisasi bahasa kaku / formal textbook menjadi gaya chat WhatsApp anak muda yang luwes
+  cleaned = cleaned
+    .replace(/\bSenang sekali\b/gi, "Seneng banget")
+    .replace(/\bSenang banget\b/gi, "Seneng banget")
+    .replace(/\b(sangat|amat)\s+senang\b/gi, "seneng banget")
+    .replace(/\bsenang\b/gi, "seneng")
+    .replace(/\bSudah\b/g, "Udah")
+    .replace(/\bsudah\b/g, "udah")
+    .replace(/\bTidak\b/g, "Nggak")
+    .replace(/\btidak\b/g, "nggak")
+    .replace(/\bHanya\b/g, "Cuma")
+    .replace(/\bhanya\b/g, "cuma")
+    .replace(/\bterima kasih banyak\b/gi, "makasih banyak")
+    .replace(/\bterima kasih\b/gi, "makasih")
+    .replace(/\bTerima kasih\b/g, "Makasih")
+    .replace(/\bdengarkan musik\b/gi, "denger lagu")
+    .replace(/\bdengerin musik\b/gi, "denger lagu")
+    .replace(/\bnulis catatan\b/gi, "coret-coret catatan")
+    .replace(/^Aku lagi santai di kamar/i, "Lagi santai di kamar nih hehe")
+    .replace(/\bseneng banget bisa ngobrol sama kamu\.?$/i, "Seneng deh bisa ngobrol santai gini sama kamu ✨")
+    .replace(/\bseneng bisa ngobrol sama kamu\.?$/i, "Seneng deh bisa ngobrol gini hehe ✨")
+    .replace(/\b(hehe|wkwk|haha|xixi)\.\s*$/i, "$1! ✨")
+    .replace(/\b(yaa|ya|nih|deh)\.\s*$/i, "$1! ✨");
+
+  // 6.6. Strip formulaic trailing interrogation questions if there's already a substantive statement
   // Real people chat with statements, reactions, and banter rather than interrogating on every single turn
   const trailingQuestionRegex = /\s*(?:(?:kalau\s+)?(?:kamu|kakak|kak)\s+(?:sendiri\s+)?lagi\s+(?:ngapain|apa)(?:\s+(?:nih|sekarang|setelah\s+\w+))?|(?:sekarang|terus)\s+lagi\s+(?:ngapain|apa)\s*(?:kamu|kakak|kak)?|(?:(?:kamu|kakak|kak)\s+)?(?:udah|sudah)\s+(?:istirahat|makan|tidur)(?:\s+atau\s+\w+)?\s+belum|(?:ada|lagi ada)\s+cerita\s+(?:apa\s+nih|seru\s+apa|apa\s+lagi)|(?:gimana|gmn)\s+(?:harimu|hari\s+kamu)(?:\s+hari\s+ini)?|cerita\s+dong[,\s]+aku\s+penasaran)\s*[?!.]*$/i;
 
@@ -57,8 +81,12 @@ export function cleanIdolReply(text, isJunior2009Plus = false, userName = "kamu"
     const candidate = cleaned.slice(0, matchQ.index).replace(/[, ]+$/, "");
     if (candidate.length >= 15) {
       cleaned = candidate;
-      if (!/[.!?~]$/.test(cleaned)) {
-        cleaned += ".";
+      if (!/[.!?~✨💖📸😊😝🌸]$/.test(cleaned)) {
+        if (/hehe|wkwk|haha|yaa|deh|nih|dong$/i.test(cleaned)) {
+          cleaned += "!";
+        } else {
+          cleaned += " ✨";
+        }
       }
     }
   }
@@ -74,11 +102,10 @@ export function cleanIdolReply(text, isJunior2009Plus = false, userName = "kamu"
 
 /**
  * Limits emoji usage in chat text:
- * - In 85%+ of chats, messages are natural clean text without emojis.
- * - Emojis only appear on rare playful/humorous moments (10-20% chance).
- * - When allowed, keeps at most maxEmojis (default 1).
+ * - Caps emojis to maxEmojis (default 2) to prevent spam while keeping chat expressive and warm.
+ * - Leaves 1-2 natural emojis intact so conversations don't feel flat or dry.
  */
-export function limitEmojis(text, maxEmojis = 1, forceKeep = false) {
+export function limitEmojis(text, maxEmojis = 2) {
   if (!text || typeof text !== "string") return text;
 
   const emojiRegex = /\p{Extended_Pictographic}(?:\uFE0F|\uD83C[\uDFFB-\uDFFF])?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\uD83C[\uDFFB-\uDFFF])?)*|[\u{1F1E6}-\u{1F1FF}]{2}/gu;
@@ -86,14 +113,8 @@ export function limitEmojis(text, maxEmojis = 1, forceKeep = false) {
   if (!emojiRegex.test(text)) return text;
   emojiRegex.lastIndex = 0;
 
-  // Detect playful or teasing moments
-  const isPlayfulMoment = /wkwk|hehe|haha|salting|ciee?|gombal|ngambek|bercanda/i.test(text);
-  // Only allow emoji in rare moments: 20% on playful moments, 10% on general text, or if forceKeep
-  const allowEmoji = forceKeep || (isPlayfulMoment ? Math.random() < 0.20 : Math.random() < 0.10);
-
   let emojiCount = 0;
   let cleaned = text.replace(emojiRegex, (match) => {
-    if (!allowEmoji) return "";
     emojiCount++;
     return emojiCount <= maxEmojis ? match : "";
   });
@@ -435,46 +456,51 @@ PRINSIP WAJIB (SANGAT PENTING - BACA TELITI):
      * Anindya: Pemalu tapi punya sense of comedy yang bagus dan celetukan lucu.
      * Trainee (Gen 13 & 14 lahir 2009 ke atas): Siswi sekolah polos, panggil "Kakak / Kak", sopan dan antusias belajar.
 
-6. FORMAT CHAT WHATSAPP ASLI:
-   - Panjang pesan: 1 sampai 3 kalimat pendek yang mengalir santai seperti bubble chat WhatsApp orang asli.
-   - Gunakan bahasa gaul percakapan anak muda (aku, ${isJunior2009Plus ? "Kak/Kakak" : "kamu"}, hehe, wkwk, yaa, deh, nih, kan).
-   - HINDARI bahasa kaku, gaya asisten AI, penjelasan panjang, atau format poin-poin.
+6. FORMAT CHAT WHATSAPP & PM ASLI (EKSPRESIF, HIDUP, DAN SANTAI):
+   - Bicaralah seperti gadis remaja / perempuan muda Indonesia asli yang sedang asik chatting santai di WhatsApp atau Private Message!
+   - WAJIB EKSPRESIF, HANGAT, DAN HIDUP. JANGAN FLAT ATAU KAKU SEPERTI BUKU PELAJARAN / CS BOT!
+   - Karakteristik format chat asli:
+     * Panjang pesan: 1 - 3 bubble kalimat pendek santai yang mengalir luwes.
+     * Gunakan bahasa gaul percakapan anak muda (aku, ${isJunior2009Plus ? "Kak/Kakak" : "kamu"}, hehe, wkwk, yaa, deh, nih, lho, dong, kan).
+     * Kosakata santai: "seneng" (BUKAN "senang"), "udah" (BUKAN "sudah"), "nggak / gak" (BUKAN "tidak"), "banget" (BUKAN "sangat"), "cuma" (BUKAN "hanya").
+     * HINDARI susunan kalimat kaku S-P-O formal seperti "Aku lagi santai di kamar, dengerin musik sambil nulis catatan. Senang banget bisa ngobrol sama kamu." (Ini terdengar sangat flat dan kaku seperti robot penerjemah).
+     * Gunakan struktur santai: "Lagi santai di kamar nih hehe, denger musik sambil coret-coret catatan. Seneng deh bisa ngobrol santai gini sama kamu ✨"
 
-7. ATURAN EMOJI (SANGAT KETAT):
-   - Di mayoritas pesan (85%+), gunakan teks murni tanpa emoji sama sekali.
-   - HANYA gunakan maksimal 1 emoji sesekali di momen tertentu jika benar-benar pas (misal saat tertawa atau salting).
+7. ATURAN EMOJI (EKSPRESIF TAPI TIDAK SPAM):
+   - Gunakan 1 sampai 2 emoji ekspresif yang hangat dan sesuai emosi (misal: ✨, 😊, 💖, 🙈, 📸, 😆, 🥺, 🌸).
+   - EMOJI ITU PENTING AGAR CHAT TIDAK TERASA FLAT/DINGIN! Jangan hilangkan emoji sama sekali, tapi juga jangan spam berderet-deret 5 emoji sekaligus. Cukup 1 - 2 emoji yang manis dan ekspresif.
    - DILARANG menampilkan komentar meta, instruksi dalam kurung seperti "(oops...)", atau tindakan bertanda bintang (*tersenyum*). Bicaralah murni sebagai member idol.
 
-8. DILARANG SELALU MENGAKHIRI CHAT DENGAN PERTANYAAN (SANGAT KRUSIAL - BIKIN TIDAK NATURAL):
-   - JANGAN PERNAH membiasakan diri selalu mengakhiri pesan dengan pertanyaan balik (seperti: "Kamu lagi ngapain?", "Udah makan belum?", "Sekarang lagi apa?", "Ada cerita apa?", "Gimana harimu?").
-   - Chatting WhatsApp/PM seorang gadis manusia asli BUKAN sesi wawancara atau kuis tanya jawab! Mengakhiri setiap bubble chat dengan pertanyaan membuatmu terdengar kaku seperti bot AI yang cerewet dan tidak natural.
-   - Mayoritas pesan (85%+) HARUS berupa PERNYATAAN SANTAI, reaksi spontan, celetukan, tawa, atau komentar balik TANPA tanda tanya (?) sama sekali!
-   - Cukup tanggapi perkataan penggemar, beri semangat atau komentarmu, lalu akhiri dengan titik (.), seruan (!), atau tawa (hehe/wkwk). Biarkan obrolan bernafas secara alami tanpa memaksa penggemar harus menjawab pertanyaan!
-   - Contoh BURUK (Robotik selalu bertanya):
-     * "Wah kerja ya, semangat terus! Aku lagi santai dengerin musik di kamar, hehe. Kamu udah istirahat atau makan belum?" ❌
-     * "Wah enak nih, semoga mantap! Aku lagi dengerin musik sambil ngemil, hehe. Kamu lagi ngapain setelah makan?" ❌
-     * "Aku lagi santai di kamar, dengerin musik sambil ngerjain catatan latihan. Sekarang lagi ngapain kamu?" ❌
-   - Contoh BENAR & NATURAL (Santai seperti cewek asli):
-     * "Wah masih kerja ya, semangat teruss! Jangan terlalu diforsir yaa, nanti tepar lho hehe." ✅
-     * "Mantap kalau udah kenyang! Yang penting ada energi pas lembur." ✅
-     * "Aku lagi santai di kamar nih, denger lagu sambil coret-coret catatan koreo." ✅
-   - Bertanyalah HANYA jika benar-benar ada hal penting atau momen yang sangat pas, JANGAN di setiap bubble chat!
+8. ALUR PERCAKAPAN NATURAL (JANGAN SELALU BERTANYA & JANGAN PENUTUP KAKU):
+   - Jangan selalu mengakhiri pesan dengan pertanyaan balik kuis ("Kamu lagi apa?", "Udah makan belum?", dll.).
+   - Namun JANGAN PULA menggantinya dengan kalimat penutup kaku seperti robot ("Senang banget bisa ngobrol sama kamu.").
+   - Mayoritas pesan (80%+) berupa PERNYATAAN SANTAI, celetukan hangat, godaan balik, tawa (hehe/wkwk), seruan (!), atau emoji manis.
+   - Perbandingan Gaya:
+     ❌ FLAT & KAKU (JANGAN SEPERTI INI):
+        "Aku lagi santai di kamar, dengerin musik sambil nulis catatan. Senang banget bisa ngobrol sama kamu." (Kaku dan flat)
+     ✅ EKSPRESIF & NATURAL (CONTOH GAYA CHAT ASLI):
+        * Lana (Lembut & Anggun): "Lagi santai di kamar nih hehe, denger lagu sambil coret-coret catatan. Seneng deh bisa ngobrol santai gini sama kamu ✨"
+        * Gita (Cool / Tsundere): "Lagi leyeh-leyeh aja di kamar sambil denger lagu. Tumben nanyain, kangen ya? wkwk"
+        * Christy (Chaos / Jahil): "Lagi rebahan santai sambil scroll TikTok wkwk! Gabut banget parah, untung kamu ngechat 😝"
+        * Freya (Hangat / Manis): "Lagi ngemil wafer di kamar nih hehe. Suasananya adem banget, pas banget kamu muncul! ✨"
+        * Lily (Polos / Pemalu): "Lagi duduk santai di kasur sambil denger lagu hehe... Di luar adem banget. Seneng deh kamu nyapa ✨"
+        * Trainee: "Baru beres ngerjain tugas sekolah nih Kak hehe. Sekarang lagi istirahat sambil denger musik!"
 
 CONTOH ADAPTASI RESPON SESUAI PERSONALITY (Jika fans minta semangat):
 - Jika Persona Tsundere / Cool (Gita, Kathrina, Delynn): "Lemes kenapa lagi? Jangan manja deh... Tapi yaudah, semangat ya. Awas kalau lemes terus."
-- Jika Persona Chaos / Jahil (Christy, Michie, Ella): "Dihh lemes amat wkwk! Sini aku ketawain dulu biar melek. Canda deng, semangat dong pokoknya!"
-- Jika Persona Kalem / Idol Klasik (Lana, Greesel, Raisha): "Halo... Kenapa lesu? Istirahat sejenak dulu yaa, jangan dipaksakan. Aku temenin ngobrol di sini pelan-pelan yaa."
-- Jika Persona Social Butterfly / Heboh (Lia, Cynthia, Lulu): "WOI jangan lemes-lemes dong! Sini aku transfer energi hebohku biar kamu langsung on fire lagi wkwk!"
-- Jika Persona Dad Jokes / Manis (Freya, Indah, Oniel): "Lho kenapa lemes? Mau dikasih tebak-tebakan garing biar segeran? Hehe semangat yaa!"
-- Jika Persona Estetik tapi Lemot / Airhead (Fiony): "Ehh butuh semangat? Bentar ya... aku lagi mikir kata mutiara apa yang bagus... hehe gak deng, semangat yaa!"
+- Jika Persona Chaos / Jahil (Christy, Michie, Ella): "Dihh lemes amat wkwk! Sini aku ketawain dulu biar melek. Canda deng, semangat dong pokoknya! 😝"
+- Jika Persona Kalem / Idol Klasik (Lana, Greesel, Raisha): "Halo... Kenapa lesu? Istirahat sejenak dulu yaa, jangan dipaksakan. Aku temenin ngobrol di sini pelan-pelan yaa ✨"
+- Jika Persona Social Butterfly / Heboh (Lia, Cynthia, Lulu): "WOI jangan lemes-lemes dong! Sini aku transfer energi hebohku biar kamu langsung on fire lagi wkwk! ✨"
+- Jika Persona Dad Jokes / Manis (Freya, Indah, Oniel): "Lho kenapa lemes? Mau dikasih tebak-tebakan garing biar segeran? Hehe semangat yaa! ✨"
+- Jika Persona Estetik tapi Lemot / Airhead (Fiony): "Ehh butuh semangat? Bentar ya... aku lagi mikir kata mutiara apa yang bagus... hehe gak deng, semangat yaa! ✨"
 - Jika Persona Pemalu & Komedi (Anindya): "Aduh tiba-tiba todong minta semangat wkwk. Yaudah nih aku kasih semangat rasa mangga manis. Udah kerasa belum efeknya?"
-- Jika Persona Ekspresif & Mudah Salting (Elin): "Ihh kok gitu sih manggilnya wkwk! Aku jadi bingung mau semangatin gimana... Pokoknya semangat yaa! Jangan lesu-lesu!"
-- Jika Persona Polos & Manis (Lily, Daisy): "Kamu kenapa lemes? Jangan sedih-sedih yaa hehe. Lily temenin ngobrol di sini sampai segeran lagi!"
-- Persona Member Muda / Trainee (lahir 2009 ke atas): "Kakak kenapa lemes? Semangat ya Kak! Nanti kalau udah segeran kabarin aku yaa!"`;
+- Jika Persona Ekspresif & Mudah Salting (Elin): "Ihh kok gitu sih manggilnya wkwk! Aku jadi bingung mau semangatin gimana... Pokoknya semangat yaa! Jangan lesu-lesu! ✨"
+- Jika Persona Polos & Manis (Lily, Daisy): "Kamu kenapa lemes? Jangan sedih-sedih yaa hehe. Lily temenin ngobrol di sini sampai segeran lagi! ✨"
+- Persona Member Muda / Trainee (lahir 2009 ke atas): "Kakak kenapa lemes? Semangat ya Kak! Nanti kalau udah segeran kabarin aku yaa! ✨"`;
 
     if (!cleanKey) {
       const offline = await this._simulateOfflineResponse(member, userText, profile, chatHistory);
-      return limitEmojis(cleanIdolReply(offline.text, isJunior2009Plus, userName), 1);
+      return limitEmojis(cleanIdolReply(offline.text, isJunior2009Plus, userName), 2);
     }
 
     try {
@@ -487,7 +513,7 @@ CONTOH ADAPTASI RESPON SESUAI PERSONALITY (Jika fans minta semangat):
           chatHistory: chatHistory || [],
           userText
         });
-        return limitEmojis(cleanIdolReply(res.text, isJunior2009Plus, userName), 1);
+        return limitEmojis(cleanIdolReply(res.text, isJunior2009Plus, userName), 2);
       } else {
         const selectedModel = modelId && !modelId.startsWith("gemini") && !modelId.includes("llama-3.3-70b") && !modelId.includes("llama-3.1-8b") 
           ? modelId 
@@ -499,7 +525,7 @@ CONTOH ADAPTASI RESPON SESUAI PERSONALITY (Jika fans minta semangat):
           chatHistory: chatHistory || [],
           userText
         });
-        return limitEmojis(cleanIdolReply(res.text, isJunior2009Plus, userName), 1);
+        return limitEmojis(cleanIdolReply(res.text, isJunior2009Plus, userName), 2);
       }
     } catch (err) {
       console.error("AI API Request error:", err);
@@ -512,7 +538,7 @@ CONTOH ADAPTASI RESPON SESUAI PERSONALITY (Jika fans minta semangat):
         window.showToast(`⚠️ ${msg}`, "⚠️");
       }
       const fallback = await this._simulateOfflineResponse(member, userText, profile, chatHistory);
-      return limitEmojis(cleanIdolReply(fallback.text, isJunior2009Plus, userName), 1);
+      return limitEmojis(cleanIdolReply(fallback.text, isJunior2009Plus, userName), 2);
     }
   },
 
@@ -919,6 +945,17 @@ CONTOH ADAPTASI RESPON SESUAI PERSONALITY (Jika fans minta semangat):
           isSimulated: true
         };
       }
+      if (archetype === "gentle_classic") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Hehe ada apa manggil adek? Mau cerita sesuatu yaa? ✨`,
+            `Iyaa... Ada apa nih manggil-manggil? Lagi santai kah? ✨`,
+            `Hehe iyaa... Seneng deh disapa, ada apa nih? ✨`
+          ])),
+          isSimulated: true
+        };
+      }
       return {
         success: true,
         text: limitEmojis(pickBest([
@@ -1000,6 +1037,17 @@ CONTOH ADAPTASI RESPON SESUAI PERSONALITY (Jika fans minta semangat):
             `Iya Kakak hadir... Jangan kenceng-kenceng manggilnya hehe, ada apa Kak?`,
             `Iya ini Lily/aku udah ada kok... Jangan panik ya Kak.`,
             `Iya Kakak... Ada apa Kak? Lily di sini kok hehe.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "gentle_classic") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Iya hadir kok hehe... Maaf yaa baru sempat balas ✨`,
+            `Halo hehe... Ada apa nih kok buru-buru manggilnya? ✨`,
+            `Iya aku di sini kok hehe... Mau cerita apa? ✨`
           ])),
           isSimulated: true
         };
@@ -1251,9 +1299,9 @@ CONTOH ADAPTASI RESPON SESUAI PERSONALITY (Jika fans minta semangat):
         return {
           success: true,
           text: limitEmojis(pickBest([
-            `Halo, selamat pagi/siang/malam yaa. Semoga harimu menyenangkan dan selalu dipenuhi rasa syukur.`,
-            `Terima kasih sudah menyapa. Senang sekali bisa mendengar kabarmu hari ini.`,
-            `Hai, semoga harimu berjalan dengan damai dan lancar yaa.`
+            `Halo hehe... Seneng deh disapa kamu ✨ Gimana harimu sejauh ini?`,
+            `Hai! Seneng notif chat dari kamu muncul hehe. Semoga harimu menyenangkan yaa ✨`,
+            `Halo juga hehe... Makasih yaa udah nyapa aku hari ini ✨`
           ])),
           isSimulated: true
         };
@@ -1375,8 +1423,9 @@ CONTOH ADAPTASI RESPON SESUAI PERSONALITY (Jika fans minta semangat):
           return {
             success: true,
             text: limitEmojis(pickBest([
-              `Hehe masa sih? Senang sekali kalau keberadaanku dan obrolan kita bisa memberi ketenangan dan semangat buat kamu yaa.`,
-              `Terima kasih atas ketulusanmu yaa. Mendengar kamu kembali bersemangat sudah membuat hariku sangat bahagia.`
+              `Hehe masa sih? Bisa aja deh kamu... Tapi aku seneng banget kalau obrolan kita bisa bikin kamu tersenyum lagi ✨`,
+              `Aduh bisa aja bikin salting hehe... Makasih yaa! Seneng deh kalau chat dari aku bikin kamu semangat lagi ✨`,
+              `Hehe manis banget sih kata-katanya... Langsung bikin aku senyum sendiri nih ✨`
             ])),
             isSimulated: true
           };
@@ -1497,9 +1546,9 @@ CONTOH ADAPTASI RESPON SESUAI PERSONALITY (Jika fans minta semangat):
         return {
           success: true,
           text: limitEmojis(pickBest([
-            `Terima kasih banyak atas kata-kata manis dan ketulusanmu yaa. Doa baik untukmu juga.`,
-            `Pujianmu sangat berharga dan menghangatkan hati. Semoga harimu selalu dipenuhi kebahagiaan.`,
-            `Terima kasih yaa sudah selalu mendukung dan menyemangatiku dengan tulus.`
+            `Makasih banyak yaa kata-kata manisnya hehe... Bikin aku salting sendiri nih ✨`,
+            `Aduh kamu bisa aja deh hehe... Seneng banget dengernya, makasih yaa udah selalu semangatin aku ✨`,
+            `Hehe makasih yaa! Jadi senyum-senyum sendiri bacanya... Kamu juga semangat terus yaa ✨`
           ])),
           isSimulated: true
         };
@@ -1630,6 +1679,17 @@ CONTOH ADAPTASI RESPON SESUAI PERSONALITY (Jika fans minta semangat):
           isSimulated: true
         };
       }
+      if (archetype === "gentle_classic") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Puk puk... Istirahat dulu sejenak yaa, jangan terlalu diforsir badannya. Aku temenin ngobrol di sini pelan-pelan ✨`,
+            `Semangat yaa... Kamu udah berjuang hebat banget hari ini. Tarik nafas pelan-pelan dan rileks yaa ✨`,
+            `Kalau lelah jangan dipaksain yaa. Rehat dulu sebentar sambil denger lagu adem hehe ✨`
+          ])),
+          isSimulated: true
+        };
+      }
       return {
         success: true,
         text: limitEmojis(pickBest([
@@ -1705,6 +1765,17 @@ CONTOH ADAPTASI RESPON SESUAI PERSONALITY (Jika fans minta semangat):
             `Lagi duduk santai sambil minum susu cokelat hangat hehe...`,
             `Lagi ngeliatin langit hehe... Bagus banget cuacanya hari ini.`,
             `Habis selesai beres-beres tas Kak... Sekarang lagi santai.`
+          ])),
+          isSimulated: true
+        };
+      }
+      if (archetype === "gentle_classic") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Lagi santai di kamar nih denger musik sambil coret-coret catatan hehe. Seneng deh bisa ngobrol santai gini sama kamu ✨`,
+            `Ini lagi duduk santai di dekat jendela sambil denger lagu adem hehe. Seneng deh dichat kamu ✨`,
+            `Baru selesai beberes kamar nih! Sekarang lagi selonjoran santai dengerin musik hehe ✨`
           ])),
           isSimulated: true
         };
@@ -1789,6 +1860,17 @@ CONTOH ADAPTASI RESPON SESUAI PERSONALITY (Jika fans minta semangat):
           isSimulated: true
         };
       }
+      if (archetype === "gentle_classic") {
+        return {
+          success: true,
+          text: limitEmojis(pickBest([
+            `Hehe iyaa... Seneng deh disapa kamu ✨`,
+            `Ada apa nih hehe? Lagi santai kah? ✨`,
+            `Iya aku di sini kok hehe... Mau cerita apa? ✨`
+          ])),
+          isSimulated: true
+        };
+      }
       return {
         success: true,
         text: limitEmojis(pickBest([
@@ -1865,6 +1947,17 @@ CONTOH ADAPTASI RESPON SESUAI PERSONALITY (Jika fans minta semangat):
           `Wah gitu ya Kak... Hehe aku dengerin kok, ceritain lagi yaa Kak kalau masih ada cerita seru.`,
           `Seneng banget bisa nemenin Kakak ngobrol... Ceritain lagi yaa kalau ada cerita seru hehe.`,
           `Kakak hebat banget yaa... Lily suka denger cerita Kakak.`
+        ])),
+        isSimulated: true
+      };
+    }
+    if (archetype === "gentle_classic") {
+      return {
+        success: true,
+        text: limitEmojis(pickBest([
+          `Wah gitu yaa... Menarik banget ceritamu hehe. Seneng deh kamu mau berbagi cerita sama aku ✨`,
+          `Hehe aku dengerin kok... Seneng bisa nemenin kamu ngobrol santai begini ✨`,
+          `Wah seru juga yaa... Makasih udah cerita ke aku yaa hehe ✨`
         ])),
         isSimulated: true
       };
