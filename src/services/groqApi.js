@@ -1,5 +1,5 @@
 import { Storage } from "./storage.js";
-import { limitEmojis } from "./aiService.js";
+import { AIService, limitEmojis } from "./aiService.js";
 
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 
@@ -51,95 +51,26 @@ export const GroqService = {
 
   async sendMessage({ member, chatHistory, userText }) {
     const apiKey = Storage.getApiKey();
-    const model = Storage.getSelectedModel() || "llama-3.3-70b-versatile";
+    const model = Storage.getSelectedModel() || "openai/gpt-oss-20b";
     const profile = Storage.getUserProfile();
 
-    const rawName = (profile && profile.name) ? profile.name.trim() : "";
-    const hasCustomName = Boolean(rawName && !["fans jkt48", "user", "kamu", "anon", "guest"].includes(rawName.toLowerCase()));
-    const memberName = member?.shortName || member?.nickname?.split(",")[0]?.trim() || (member?.name ? member.name.split(" ")[0] : "aku");
+    const reply = await AIService.generateIdolResponse(
+      userText,
+      member.systemPrompt,
+      apiKey,
+      model,
+      chatHistory,
+      "groq",
+      profile,
+      member
+    );
 
-    // Context instructions for idol persona with user profile
-    const userContext = `Informasi User yang sedang chat dengan kamu:
-- Nama Panggilan User: "${hasCustomName ? rawName : "kamu"}"
-- Gender: "${profile?.gender || "Belum disetel"}"
-- Info/Status User: "${profile?.status || "Ada"}"
-- Kota/Domisili: "${profile?.city || "Indonesia"}"
-
-ATURAN KHUSUS CHAT:
-1. Jawablah langsung sebagai ${memberName} (gunakan nama panggilan akrab ini atau 'aku', JANGAN gunakan nama lengkap formal).
-2. Panggil user secara santai dan luwes. Hindari struktur kalimat kaku seperti "nih kamu".
-3. INTERAKTIF & TIDAK KAKU: Gunakan bahasa Indonesia santai anak muda (aku, kamu, hehe, wkwk, lho, dong, dll.). Selalu lempar pertanyaan balik yang relevan agar obrolan terus hidup dua arah.
-4. ATURAN EMOJI: Di setiap chat TIDAK PERLU ada emoji! Mayoritas chat (85%+) HARUS TANPA EMOJI. Hanya gunakan emoji sesekali di momen tertentu saja jika benar-benar pas (maksimal 1 emoji).`;
-
-    const messages = [
-      { role: "system", content: `${member.systemPrompt}\n\n${userContext}` }
-    ];
-
-    // Append last 10 messages from history for contextual memory
-    if (chatHistory && chatHistory.length > 0) {
-      const recent = chatHistory.slice(-10);
-      for (const msg of recent) {
-        if (msg.isUser) {
-          messages.push({ role: "user", content: msg.text });
-        } else if (!msg.isSpecial && !msg.isSystem) {
-          messages.push({ role: "assistant", content: msg.text });
-        }
-      }
-    }
-
-    // Append current user message
-    messages.push({ role: "user", content: userText });
-
-    if (!apiKey) {
-      // Fallback to intelligent offline simulated response
-      return await this._simulateOfflineResponse(member, userText, profile);
-    }
-
-    try {
-      const response = await fetch(GROQ_ENDPOINT, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey.trim()}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: messages,
-          temperature: 0.85,
-          max_tokens: 300
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.warn("Groq API error, falling back to simulated response", errorData);
-        const fallback = await this._simulateOfflineResponse(member, userText, profile);
-        return {
-          ...fallback,
-          warning: `Groq Error (${response.status}): Menggunakan respon simulasi.`
-        };
-      }
-
-      const data = await response.json();
-      const reply = data.choices?.[0]?.message?.content?.trim();
-
-      if (!reply) {
-        throw new Error("Respon kosong dari AI");
-      }
-
-      return {
-        success: true,
-        text: limitEmojis(reply, 1),
-        modelUsed: model
-      };
-    } catch (err) {
-      console.warn("API request failed", err);
-      const fallback = await this._simulateOfflineResponse(member, userText, profile);
-      return {
-        ...fallback,
-        warning: `Koneksi Groq terputus: Menggunakan respon simulasi.`
-      };
-    }
+    return {
+      success: true,
+      text: reply,
+      modelUsed: model,
+      provider: "Groq Cloud"
+    };
   },
 
   async _simulateOfflineResponse(member, userText, profile) {

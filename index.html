@@ -13,9 +13,9 @@
   <meta http-equiv="Expires" content="0" />
   
   <!-- Stylesheets -->
-  <link rel="stylesheet" href="src/styles/ios-base.css?v=20260918_pap" />
-  <link rel="stylesheet" href="src/styles/whatsapp.css?v=20260918_pap" />
-  <link rel="stylesheet" href="src/styles/iphone-frame.css?v=20260918_pap" />
+  <link rel="stylesheet" href="src/styles/ios-base.css?v=20260929_v2" />
+  <link rel="stylesheet" href="src/styles/whatsapp.css?v=20260929_v2" />
+  <link rel="stylesheet" href="src/styles/iphone-frame.css?v=20260929_v2" />
 </head>
 <body>
 
@@ -47,7 +47,7 @@
           </button>
 
           <!-- Contacts Directory -->
-          <button class="desktop-icon-btn" id="desktop-contacts-btn" title="Buku Kontak Member (58)">
+          <button class="desktop-icon-btn" id="desktop-contacts-btn" title="Buku Kontak Member (59)">
             👥
           </button>
 
@@ -131,7 +131,7 @@
         </div>
 
         <div class="filter-tags-scroll" id="filter-tags-wrap">
-          <div class="filter-tag-pill active" data-filter="all">Semua (58)</div>
+          <div class="filter-tag-pill active" data-filter="all" id="chat-filter-all">Semua</div>
           <div class="filter-tag-pill" data-filter="team-love">Tim Love</div>
           <div class="filter-tag-pill" data-filter="team-dream">Tim Dream</div>
           <div class="filter-tag-pill" data-filter="team-passion">Tim Passion</div>
@@ -142,7 +142,7 @@
         <main class="chat-list-scroll" id="chat-list-items"></main>
       </div>
 
-      <!-- VIEW CONTACTS: BUKU KONTAK MEMBER (58) -->
+      <!-- VIEW CONTACTS: BUKU KONTAK MEMBER (59) -->
       <div class="app-screen" id="view-contacts" style="display: none;">
         <header class="ios-nav-bar">
           <button class="ios-nav-btn" id="back-to-chats-from-contacts">‹ Chats</button>
@@ -151,7 +151,7 @@
         </header>
 
         <div class="ios-large-title-container">
-          <h1 class="ios-large-title">Kontak (58)</h1>
+          <h1 class="ios-large-title" id="contacts-heading-title">Kontak (59)</h1>
         </div>
 
         <div class="ios-search-container">
@@ -165,7 +165,7 @@
         </div>
 
         <div class="filter-tags-scroll" id="contacts-filter-tags-wrap">
-          <div class="filter-tag-pill active" data-filter="all">Semua (58)</div>
+          <div class="filter-tag-pill active" data-filter="all" id="contacts-filter-all">Semua (59)</div>
           <div class="filter-tag-pill" data-filter="custom-only">⭐ Nama Kustom</div>
           <div class="filter-tag-pill" data-filter="team-love">Tim Love</div>
           <div class="filter-tag-pill" data-filter="team-dream">Tim Dream</div>
@@ -342,13 +342,16 @@
           <span>Pembaruan</span>
         </button>
 
-        <button class="ios-tab-item" id="tab-calls-btn" onclick="alert('Fitur Panggilan Suara & Video Idol')">
+        <button class="ios-tab-item" id="tab-contacts-btn">
           <div class="ios-tab-icon-wrap">
             <svg class="ios-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
           </div>
-          <span>Panggilan</span>
+          <span>Kontak</span>
         </button>
 
         <button class="ios-tab-item active" id="tab-chats-btn">
@@ -384,7 +387,7 @@
     <main class="wa-main-panel" id="wa-main-panel">
 
       <!-- Desktop Empty Splash Screen -->
-      <div class="desktop-empty-placeholder" id="desktop-empty-placeholder" style="display: none;">
+      <div class="desktop-empty-placeholder" id="desktop-empty-placeholder" style="display: flex;">
         <img src="assets/pm-logo.jpg" alt="JKT48 Private Message" class="desktop-empty-logo" style="width: 140px; height: 140px; border-radius: 30px; margin-bottom: 24px; box-shadow: 0 12px 30px rgba(16, 185, 129, 0.25); object-fit: cover;" />
         <h2 class="desktop-empty-title" style="font-weight: 700; letter-spacing: -0.5px;">JKT48 Private Message</h2>
         <p class="desktop-empty-desc">
@@ -393,10 +396,13 @@
         <div class="desktop-empty-badge">
           🔒 Terhubung langsung dengan Google Gemini AI / Groq Cloud
         </div>
+        <button class="desktop-empty-cta-btn" id="desktop-empty-contacts-btn" style="margin-top: 24px;">
+          👥 Buka Kontak Member (59)
+        </button>
       </div>
 
       <!-- ACTIVE CHAT ROOM -->
-      <div class="chat-room-screen" id="chat-room-screen" style="display: flex;">
+      <div class="chat-room-screen" id="chat-room-screen" style="display: none;">
         
         <!-- Header -->
         <header class="chat-room-nav">
@@ -615,6 +621,6 @@
   </div>
 
   <!-- JavaScript Modules -->
-  <script type="module" src="src/app.js?v=20260918_v6"></script>
+  <script type="module" src="src/app.js?v=20260929_v4"></script>
 </body>
 </html>

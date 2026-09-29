@@ -7,7 +7,8 @@ const STORAGE_KEYS = {
   THEME_MODE: "xidol_theme_mode",
   SOUND_ENABLED: "xidol_sound_enabled",
   STREAKS_DATA: "xidol_streaks_daily_v3",
-  CUSTOM_NAMES: "xidol_member_custom_names_v1"
+  CUSTOM_NAMES: "xidol_member_custom_names_v1",
+  ACTIVE_CHATS: "xidol_active_chats_v1"
 };
 
 const DEFAULT_PROFILE = {
@@ -97,6 +98,7 @@ export const Storage = {
 
   clearAllChats() {
     localStorage.removeItem(STORAGE_KEYS.CHAT_MESSAGES);
+    this.clearAllActiveChats();
   },
 
   clearMemberChat(memberId) {
@@ -108,6 +110,48 @@ export const Storage = {
     } catch (e) {
       console.error("Failed to clear member chat", e);
     }
+  },
+
+  getActiveChatIds() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.ACTIVE_CHATS);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  addActiveChat(memberId) {
+    try {
+      const list = this.getActiveChatIds();
+      const existingIdx = list.indexOf(memberId);
+      if (existingIdx !== -1) {
+        // Move to front (most recent)
+        list.splice(existingIdx, 1);
+      }
+      list.unshift(memberId);
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_CHATS, JSON.stringify(list));
+      return list;
+    } catch (e) {
+      console.error("Failed to add active chat", e);
+      return [];
+    }
+  },
+
+  removeActiveChat(memberId) {
+    try {
+      let list = this.getActiveChatIds();
+      list = list.filter(id => id !== memberId);
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_CHATS, JSON.stringify(list));
+      return list;
+    } catch (e) {
+      console.error("Failed to remove active chat", e);
+      return [];
+    }
+  },
+
+  clearAllActiveChats() {
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_CHATS);
   },
 
   getThemeMode() {

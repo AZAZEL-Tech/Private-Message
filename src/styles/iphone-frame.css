@@ -178,18 +178,43 @@
 
   /* Chat Room on Desktop: fills 100% of the right column */
   .chat-room-screen {
-    position: relative !important;
-    animation: none !important;
-    display: flex !important;
-    flex-direction: column !important;
-    height: 100% !important;
-    width: 100% !important;
-    min-height: 0 !important;
-    z-index: 5 !important;
-    overflow: hidden !important;
-    margin: 0 !important;
-    left: 0 !important;
-    top: 0 !important;
+    position: relative;
+    animation: none;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    min-height: 0;
+    z-index: 5;
+    overflow: hidden;
+    margin: 0;
+    left: 0;
+    top: 0;
+  }
+
+  .desktop-empty-cta-btn {
+    background: var(--ios-wa-badge);
+    color: #ffffff;
+    border: none;
+    border-radius: 22px;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(37, 211, 102, 0.28);
+    transition: transform 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .desktop-empty-cta-btn:hover {
+    transform: translateY(-1px);
+    opacity: 0.92;
+    box-shadow: 0 6px 16px rgba(37, 211, 102, 0.38);
+  }
+
+  .desktop-empty-cta-btn:active {
+    transform: scale(0.98);
   }
 
   .chat-room-nav {
@@ -250,7 +275,7 @@
   }
 
   .wa-main-panel {
-    display: none;
+    display: contents;
   }
 
   /* Mobile Fullscreen Modal */

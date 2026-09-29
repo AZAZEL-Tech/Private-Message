@@ -1,5 +1,5 @@
-import { PM_PHOTOS_DATA } from "../data/pmPhotos.js";
-import { getMemberArchetype } from "./aiService.js";
+import { PM_PHOTOS_DATA, PM_VOICE_NOTES } from "../data/pmPhotos.js?v=20260921_v14";
+import { getMemberArchetype } from "./aiService.js?v=20260921_v14";
 
 // Riwayat foto yang baru saja dikirim per member agar tidak berulang berturut-turut
 const recentMemberPhotos = new Map();
@@ -80,7 +80,7 @@ export const PapService = {
    * @returns {string} - URL foto
    */
   getRandomPhoto(member) {
-    if (!member) return "assets/members/anindya_ramadhani.jpg";
+    if (!member) return "assets/pm-logo.jpg";
     const memberId = (member.id || "").toLowerCase();
     const shortName = (member.shortName || "").toLowerCase();
 
@@ -115,7 +115,7 @@ export const PapService = {
     }
 
     // Fallback terakhir ke avatar resmi member
-    return member.avatar || "assets/members/anindya_ramadhani.jpg";
+    return member.avatar || "assets/pm-logo.jpg";
   },
 
   /**

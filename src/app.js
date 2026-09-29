@@ -1,10 +1,10 @@
-import { MEMBERS } from "./data/members.js?v=20260918_v6";
-import { STORIES_DATA } from "./data/stories.js?v=20260918_v6";
-import { AI_MODELS } from "./data/models.js?v=20260918_v6";
-import { Storage } from "./services/storage.js?v=20260918_v6";
-import { AIService } from "./services/aiService.js?v=20260918_v6";
-import { soundEffects } from "./services/soundEffects.js?v=20260918_v6";
-import { PapService } from "./services/papService.js?v=20260918_v6";
+import { MEMBERS } from "./data/members.js?v=20260929_v2";
+import { STORIES_DATA } from "./data/stories.js?v=20260929_v2";
+import { AI_MODELS } from "./data/models.js?v=20260929_v2";
+import { Storage } from "./services/storage.js?v=20260929_v2";
+import { AIService, limitEmojis } from "./services/aiService.js?v=20260929_v2";
+import { soundEffects } from "./services/soundEffects.js?v=20260929_v2";
+import { PapService } from "./services/papService.js?v=20260929_v2";
 
 // Global App State
 const state = {
@@ -51,7 +51,7 @@ function getMemberOfficialName(member) {
 }
 
 // Avatar Fallback Helper
-const AVATAR_FALLBACK = "assets/members/freya_jayawardana.jpg";
+const AVATAR_FALLBACK = "assets/pm-logo.jpg";
 
 function getAvatarImgHtml(src, alt, className = "chat-item-avatar") {
   const safeSrc = src || AVATAR_FALLBACK;
@@ -71,7 +71,15 @@ function initApp() {
   updateTotalUnreadBadge();
 
   if (isDesktopView()) {
-    openChatRoom("freya");
+    const activeChatIds = Storage.getActiveChatIds();
+    if (activeChatIds.length > 0) {
+      openChatRoom(activeChatIds[0]);
+    } else {
+      const desktopPlaceholder = getEl("desktop-empty-placeholder");
+      if (desktopPlaceholder) desktopPlaceholder.style.display = "flex";
+      const chatRoomScreen = getEl("chat-room-screen");
+      if (chatRoomScreen) chatRoomScreen.style.display = "none";
+    }
   }
 }
 
@@ -112,7 +120,8 @@ function toggleTheme() {
 function showToast(message, icon = "✨") {
   const toast = document.createElement("div");
   toast.className = "ios-toast";
-  toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+  const cleanMsg = (message || "").replace(/^[⚠️✅🗑️📸🔄🔥✨❌💡\s]+/, "");
+  toast.innerHTML = `<span>${icon}</span><span>${cleanMsg}</span>`;
   document.body.appendChild(toast);
   setTimeout(() => {
     toast.style.opacity = "0";
@@ -125,10 +134,15 @@ window.showToast = showToast;
 // Unread badge calculation
 function updateTotalUnreadBadge() {
   let total = 0;
-  MEMBERS.forEach(m => {
+  const activeChatIds = (Storage && typeof Storage.getActiveChatIds === "function") 
+    ? Storage.getActiveChatIds() 
+    : [];
+  activeChatIds.forEach(id => {
+    const m = MEMBERS.find(member => member.id === id);
+    if (!m) return;
     const history = Storage.getChatHistory(m.id);
     if (history === null) {
-      total += m.unreadCount;
+      total += (m.unreadCount || 0);
     }
   });
   const tabUnreadBadge = getEl("tab-unread-badge");
@@ -148,9 +162,44 @@ function updateTotalUnreadBadge() {
 function renderChatList() {
   const container = getEl("chat-list-items");
   if (!container) return;
-  
+
+  const activeChatIds = (Storage && typeof Storage.getActiveChatIds === "function") 
+    ? Storage.getActiveChatIds() 
+    : [];
+  const chatFilterAllPill = getEl("chat-filter-all");
+  if (chatFilterAllPill) {
+    chatFilterAllPill.textContent = activeChatIds.length > 0 ? `Semua (${activeChatIds.length})` : "Semua";
+  }
+
+  // If no active chats have been started yet, show an inviting empty state
+  if (activeChatIds.length === 0) {
+    container.innerHTML = `
+      <div class="empty-chats-state">
+        <div class="empty-chats-icon-wrap">💬</div>
+        <div class="empty-chats-title">Belum Ada Obrolan</div>
+        <div class="empty-chats-desc">
+          Pilih member oshi kamu di <strong>Kontak Member</strong> untuk mulai mengirim dan menerima Private Message personal!
+        </div>
+        <button class="empty-chats-cta-btn" id="empty-goto-contacts-btn">
+          <span>👥</span>
+          <span>Pilih Member di Kontak (${MEMBERS.length})</span>
+        </button>
+      </div>
+    `;
+
+    getEl("empty-goto-contacts-btn")?.addEventListener("click", () => {
+      switchTab("contacts");
+    });
+    return;
+  }
+
+  // Get members matching active chats
+  const activeMembers = activeChatIds
+    .map(id => MEMBERS.find(m => m.id === id))
+    .filter(Boolean);
+
   const query = state.searchQuery.toLowerCase();
-  const filtered = MEMBERS.filter(m => {
+  const filtered = activeMembers.filter(m => {
     const customName = (Storage.getMemberCustomName(m.id) || "").toLowerCase();
     const matchSearch = m.name.toLowerCase().includes(query) || 
                         m.fullName.toLowerCase().includes(query) ||
@@ -174,7 +223,7 @@ function renderChatList() {
   if (filtered.length === 0) {
     container.innerHTML = `
       <div style="padding: 40px 20px; text-align: center; color: var(--ios-text-secondary);">
-        <div style="font-size: 32px; margin-bottom: 8px;">💬</div>
+        <div style="font-size: 32px; margin-bottom: 8px;">🔍</div>
         <div style="font-weight: 600; font-size: 15px;">Tidak ada obrolan ditemukan</div>
         <div style="font-size: 13px; margin-top: 4px;">Coba gunakan kata kunci pencarian atau filter lain.</div>
       </div>
@@ -385,11 +434,21 @@ function openChatRoom(memberId) {
   if (!member) return;
 
   state.activeMemberId = memberId;
+  if (Storage && typeof Storage.addActiveChat === "function") {
+    Storage.addActiveChat(memberId);
+  }
   soundEffects.playTapHaptic();
 
+  // Instantly toggle screens: hide empty placeholder, show chat room
   const desktopPlaceholder = getEl("desktop-empty-placeholder");
   if (desktopPlaceholder) {
     desktopPlaceholder.style.display = "none";
+  }
+
+  const chatRoomScreen = getEl("chat-room-screen");
+  if (chatRoomScreen) {
+    chatRoomScreen.style.display = "flex";
+    chatRoomScreen.classList.remove("closing");
   }
 
   // Populate header with custom or official name
@@ -420,17 +479,15 @@ function openChatRoom(memberId) {
   // Streak calculation & badge display
   updateChatRoomStreakBadge(member);
 
-  renderChatMessages(member);
+  try {
+    renderChatMessages(member);
+  } catch (err) {
+    console.error("Error rendering messages:", err);
+  }
 
   const geminiBanner = getEl("chat-gemini-banner");
   if (geminiBanner) {
     geminiBanner.style.display = Storage.getApiKey() ? "none" : "flex";
-  }
-
-  const chatRoomScreen = getEl("chat-room-screen");
-  if (chatRoomScreen) {
-    chatRoomScreen.style.display = "flex";
-    chatRoomScreen.classList.remove("closing");
   }
 
   const messagesArea = getEl("chat-messages-area");
@@ -442,21 +499,43 @@ function openChatRoom(memberId) {
 
   renderChatList();
   updateTotalUnreadBadge();
+
+  // Jadwalkan idle follow-up jika pesan terakhir adalah dari member dan belum dibalas
+  const currentChatHist = Storage.getChatHistory(memberId) || [];
+  if (currentChatHist.length > 0) {
+    const last = currentChatHist[currentChatHist.length - 1];
+    if (!last.isUser && !last.isIdleFollowUp) {
+      scheduleIdleFollowUp(memberId, 25000);
+    }
+  }
 }
 
-function closeChatRoom() {
-  if (isDesktopView()) return;
+function closeChatRoom(forceCloseDesktop = false) {
+  if (isDesktopView() && !forceCloseDesktop) return;
   soundEffects.playTapHaptic();
+
+  // Blur any focused input in the chat
+  const activeEl = document.activeElement;
+  if (activeEl && typeof activeEl.blur === "function") {
+    activeEl.blur();
+  }
+
+  state.activeMemberId = null;
+
   const chatRoomScreen = getEl("chat-room-screen");
   if (chatRoomScreen) {
-    chatRoomScreen.classList.add("closing");
-    setTimeout(() => {
-      chatRoomScreen.style.display = "none";
-      chatRoomScreen.classList.remove("closing");
-      state.activeMemberId = null;
-      renderChatList();
-    }, 220);
+    chatRoomScreen.style.display = "none";
+    chatRoomScreen.classList.remove("closing");
   }
+
+  if (isDesktopView()) {
+    const desktopPlaceholder = getEl("desktop-empty-placeholder");
+    if (desktopPlaceholder) {
+      desktopPlaceholder.style.display = "flex";
+    }
+  }
+
+  renderChatList();
 }
 
 // =============================================================================
@@ -502,15 +581,20 @@ function renderChatMessages(member) {
     </div>
   `;
 
+  const memberFallbackAvatar = (member && member.avatar) ? member.avatar : AVATAR_FALLBACK;
+
   const messagesHtml = messages.map(msg => {
     const isUser = msg.isUser;
     const bubbleClass = isUser ? "chat-bubble outgoing" : "chat-bubble incoming";
 
     let contentHtml = "";
     if (msg.isPhoto) {
+      const rawUrl = msg.photoUrl || "";
+      const safePhotoUrl = encodeURI(decodeURI(rawUrl));
       contentHtml = `
-        <div class="chat-bubble-photo-wrap" data-photo-url="${escapeHtml(msg.photoUrl || '')}" data-photo-title="${escapeHtml(msg.text || 'Foto PAP Spesial 📸')}" data-photo-time="${escapeHtml(msg.time || '')}" title="Klik untuk memperbesar foto 📸">
-          <img class="chat-bubble-photo" src="${msg.photoUrl}" alt="PAP Photo" loading="lazy" />
+        <div class="chat-bubble-photo-wrap" data-photo-url="${escapeHtml(safePhotoUrl)}" data-photo-title="${escapeHtml(msg.text || 'Foto PAP Spesial 📸')}" data-photo-time="${escapeHtml(msg.time || '')}" title="Klik untuk memperbesar foto 📸">
+          <div class="photo-placeholder-shimmer"></div>
+          <img class="chat-bubble-photo" src="${escapeHtml(safePhotoUrl)}" alt="PAP Photo" loading="lazy" onload="this.style.opacity='1'; const sh=this.previousElementSibling; if(sh) sh.style.display='none'; const a=document.getElementById('chat-messages-area'); if(a) a.scrollTo({ top: a.scrollHeight, behavior: 'smooth' });" onerror="this.onerror=null; this.src='${escapeHtml(memberFallbackAvatar)}'; const sh=this.previousElementSibling; if(sh) sh.style.display='none'; this.style.opacity='1';" style="opacity: 0;" />
           <div class="chat-bubble-photo-title">${escapeHtml(msg.text || "Foto PAP Spesial 📸")}</div>
         </div>
       `;
@@ -566,6 +650,9 @@ async function handleSendMessage() {
     isPhoto: false
   };
 
+  // 0. Batalkan timer idle follow-up yang sedang berjalan untuk member ini
+  clearIdleFollowUp(member.id);
+
   try {
     // 1. Save and render user message immediately to the screen
     Storage.saveChatMessage(member.id, userMsg);
@@ -601,67 +688,17 @@ async function handleSendMessage() {
     }
 
     // 4. Deteksi apakah pesan meminta PAP atau foto member
-    if (PapService.isPapRequest(text)) {
-      state.isTyping = true;
-      showTypingIndicator();
-      const chatRoomNavStatus = getEl("chat-nav-status");
-      if (chatRoomNavStatus) chatRoomNavStatus.textContent = "sedang menyiapkan foto...";
+    const isPap = PapService.isPapRequest(text);
 
-      setTimeout(() => {
-        hideTypingIndicator();
-        state.isTyping = false;
-
-        if (chatRoomNavStatus) {
-          const curKey = Storage.getApiKey();
-          const curProv = Storage.getAiProvider();
-          const badge = curKey ? `✨ ${curProv === "gemini" ? "Gemini AI" : "Groq AI"}` : "📱 Mode Offline";
-          chatRoomNavStatus.textContent = member.online ? `Online • ${badge}` : member.lastSeen;
-        }
-
-        const photoUrl = PapService.getRandomPhoto(member);
-        const caption = PapService.getRandomCaption(member);
-
-        const replyNow = new Date();
-        const replyTimeStr = `${String(replyNow.getHours()).padStart(2, "0")}:${String(replyNow.getMinutes()).padStart(2, "0")}`;
-
-        const papMsg = {
-          id: `msg_pap_${Date.now()}`,
-          text: caption,
-          isUser: false,
-          time: replyTimeStr,
-          date: "HARI INI",
-          isPhoto: true,
-          photoUrl: photoUrl
-        };
-
-        try {
-          soundEffects.playCameraShutter();
-        } catch (err) {
-          console.warn("Camera shutter sound error:", err);
-        }
-
-        showToast(`Menerima foto PAP dari ${getMemberDisplayName(member)}! 📸`, "📷");
-        Storage.saveChatMessage(member.id, papMsg);
-        renderChatMessages(member);
-        if (msgArea) {
-          msgArea.scrollTop = msgArea.scrollHeight;
-          requestAnimationFrame(() => {
-            msgArea.scrollTop = msgArea.scrollHeight;
-          });
-        }
-        renderChatList();
-      }, 1400);
-
-      return;
-    }
-
-    // 5. Show Typing Indicator for Normal Text
+    // 5. Show Typing Indicator
     state.isTyping = true;
     showTypingIndicator();
     const chatRoomNavStatus = getEl("chat-nav-status");
-    if (chatRoomNavStatus) chatRoomNavStatus.textContent = "sedang mengetik...";
+    if (chatRoomNavStatus) {
+      chatRoomNavStatus.textContent = isPap ? "sedang menyiapkan foto..." : "sedang mengetik...";
+    }
 
-    // 5. Query AI Response (Gemini, Groq, or Contextual Idol Persona)
+    // 6. Query AI Response (Gemini, Groq, or Contextual Idol Persona)
     const apiKey = Storage.getApiKey();
     const modelId = Storage.getSelectedModel();
     const provider = Storage.getAiProvider();
@@ -685,7 +722,8 @@ async function handleSendMessage() {
         chatHistory,
         provider,
         userProfile,
-        member
+        member,
+        { isPap }
       );
     } catch (aiErr) {
       hasAiError = true;
@@ -693,10 +731,12 @@ async function handleSendMessage() {
       showToast(`⚠️ AI Error: ${aiErr.message}`, "⚠️");
       const rawName = userProfile?.name?.trim() || "";
       const userName = (rawName && rawName.toLowerCase() !== "fans jkt48") ? rawName : "kamu";
-      aiReplyText = `Hehe ${userName}, seru banget! Aku suka deh ngobrol sama kamu. Tetap semangat yaa!`;
+      aiReplyText = isPap
+        ? `Nih fotoku khusus buat ${userName}! Disimpan yaa hehe.`
+        : `Hehe ${userName}, seru banget! Seneng deh bisa ngobrol gini.`;
     }
 
-    // 6. Hide typing indicator before rendering reply
+    // 7. Hide typing indicator before rendering reply
     hideTypingIndicator();
     state.isTyping = false;
 
@@ -708,18 +748,34 @@ async function handleSendMessage() {
       chatRoomNavStatus.textContent = member.online ? (hasAiError ? "Online • ⚠️ API Gagal" : `Online • ${badge}`) : member.lastSeen;
     }
 
-    // 7. Save and render idol reply
+    // 8. Save and render idol reply with photo or text
     const replyNow = new Date();
     const replyTimeStr = `${String(replyNow.getHours()).padStart(2, "0")}:${String(replyNow.getMinutes()).padStart(2, "0")}`;
 
-    const idolMsg = {
-      id: `msg_idol_${Date.now()}`,
-      text: aiReplyText,
-      isUser: false,
-      time: replyTimeStr,
-      date: "HARI INI",
-      isPhoto: false
-    };
+    const cleanedReplyText = limitEmojis(aiReplyText, 1, { chatHistory });
+
+    let idolMsg;
+    if (isPap) {
+      const photoUrl = PapService.getRandomPhoto(member);
+      idolMsg = {
+        id: `msg_pap_${Date.now()}`,
+        text: cleanedReplyText,
+        isUser: false,
+        time: replyTimeStr,
+        date: "HARI INI",
+        isPhoto: true,
+        photoUrl: photoUrl
+      };
+    } else {
+      idolMsg = {
+        id: `msg_idol_${Date.now()}`,
+        text: cleanedReplyText,
+        isUser: false,
+        time: replyTimeStr,
+        date: "HARI INI",
+        isPhoto: false
+      };
+    }
 
     Storage.saveChatMessage(member.id, idolMsg);
 
@@ -738,6 +794,9 @@ async function handleSendMessage() {
     }
     renderChatList();
 
+    // 9. Jadwalkan follow-up idle jika user tidak kunjung membalas chat member
+    scheduleIdleFollowUp(member.id);
+
   } catch (criticalErr) {
     console.error("Critical error in handleSendMessage:", criticalErr);
     hideTypingIndicator();
@@ -755,46 +814,133 @@ async function handleSendMessage() {
 function handleRequestPap() {
   const member = MEMBERS.find(m => m.id === state.activeMemberId);
   if (!member || state.isTyping) return;
+  handleSendMessage("pap dong");
+}
 
-  state.isTyping = true;
-  showTypingIndicator();
-  const chatRoomNavStatus = getEl("chat-nav-status");
-  if (chatRoomNavStatus) chatRoomNavStatus.textContent = "sedang menyiapkan foto...";
+// =============================================================================
+// IDLE FOLLOW-UP CHAT SERVICE (Saat user tiba-tiba diam / ditinggal chatan)
+// =============================================================================
+const idleFollowUpTimers = new Map();
 
-  setTimeout(() => {
+function clearIdleFollowUp(memberId) {
+  if (!memberId) return;
+  const id = String(memberId).toLowerCase();
+  if (idleFollowUpTimers.has(id)) {
+    clearTimeout(idleFollowUpTimers.get(id));
+    idleFollowUpTimers.delete(id);
+  }
+}
+
+function scheduleIdleFollowUp(memberId, customDelayMs = null) {
+  if (!memberId) return;
+  clearIdleFollowUp(memberId);
+
+  // Waktu jeda idle alami & responsif: 20 - 35 detik (mudah diuji dan sangat pas saat chatan ditinggal)
+  const delayMs = customDelayMs !== null ? customDelayMs : (20000 + Math.floor(Math.random() * 15000));
+
+  const timer = setTimeout(async () => {
+    idleFollowUpTimers.delete(memberId);
+
+    const history = Storage.getChatHistory(memberId) || [];
+    if (history.length === 0) return;
+
+    // Pastikan pesan terakhir BUKAN dari user (user belum membalas pesan idol)
+    const lastMsg = history[history.length - 1];
+    if (lastMsg.isUser) return;
+
+    // Hindari mengirimkan follow-up berulang kali jika user belum membalas
+    if (lastMsg.isIdleFollowUp) return;
+
+    const member = MEMBERS.find(m => m.id === memberId || m.id.toLowerCase() === String(memberId).toLowerCase());
+    if (!member) return;
+
+    await triggerMemberIdleFollowUp(member);
+  }, delayMs);
+
+  idleFollowUpTimers.set(memberId, timer);
+}
+
+async function triggerMemberIdleFollowUp(member) {
+  if (!member) return;
+  const isCurrentlyInRoom = (state.activeMemberId === member.id);
+
+  if (isCurrentlyInRoom) {
+    state.isTyping = true;
+    showTypingIndicator();
+    const chatRoomNavStatus = getEl("chat-nav-status");
+    if (chatRoomNavStatus) chatRoomNavStatus.textContent = "sedang mengetik...";
+    // Jeda mengetik 1.5 detik yang realistis
+    await new Promise(r => setTimeout(r, 1500));
+  }
+
+  const apiKey = Storage.getApiKey();
+  const modelId = Storage.getSelectedModel();
+  const provider = Storage.getAiProvider();
+  const chatHistory = Storage.getChatHistory(member.id) || [];
+  const userProfile = Storage.getUserProfile();
+
+  const customName = Storage.getMemberCustomName(member.id);
+  let effectivePrompt = member.systemPrompt;
+  if (customName) {
+    effectivePrompt += `\nCatatan Tambahan: Penggemar memanggilmu dengan nama panggilan spesial: "${customName}".`;
+  }
+
+  let followUpText = "";
+  try {
+    followUpText = await AIService.generateIdolResponse(
+      "",
+      effectivePrompt,
+      apiKey,
+      modelId,
+      chatHistory,
+      provider,
+      userProfile,
+      member,
+      { isIdleFollowUp: true }
+    );
+  } catch (err) {
+    console.warn("Idle follow-up AI error:", err);
+    const offline = await AIService._simulateOfflineResponse(member, "", userProfile, chatHistory, { isIdleFollowUp: true });
+    followUpText = offline.text;
+  }
+
+  if (isCurrentlyInRoom) {
     hideTypingIndicator();
     state.isTyping = false;
-
+    const chatRoomNavStatus = getEl("chat-nav-status");
     if (chatRoomNavStatus) {
       const curKey = Storage.getApiKey();
       const curProv = Storage.getAiProvider();
       const badge = curKey ? `✨ ${curProv === "gemini" ? "Gemini AI" : "Groq AI"}` : "📱 Mode Offline";
       chatRoomNavStatus.textContent = member.online ? `Online • ${badge}` : member.lastSeen;
     }
+  }
 
-    const photoUrl = PapService.getRandomPhoto(member);
-    const caption = PapService.getRandomCaption(member);
-    const now = new Date();
-    const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const replyNow = new Date();
+  const replyTimeStr = `${String(replyNow.getHours()).padStart(2, "0")}:${String(replyNow.getMinutes()).padStart(2, "0")}`;
+  const cleanedReplyText = limitEmojis(followUpText, 1, { chatHistory });
 
-    const papMsg = {
-      id: `msg_pap_${Date.now()}`,
-      text: caption,
-      isUser: false,
-      time: timeStr,
-      date: "HARI INI",
-      isPhoto: true,
-      photoUrl: photoUrl
-    };
+  const idolMsg = {
+    id: `msg_idle_${Date.now()}`,
+    text: cleanedReplyText,
+    isUser: false,
+    time: replyTimeStr,
+    date: "HARI INI",
+    isPhoto: false,
+    isIdleFollowUp: true
+  };
 
-    try {
-      soundEffects.playCameraShutter();
-    } catch (err) {
-      console.warn("Camera shutter sound error:", err);
-    }
+  Storage.saveChatMessage(member.id, idolMsg);
 
-    showToast(`Menerima foto PAP dari ${getMemberDisplayName(member)}! 📸`, "📷");
-    Storage.saveChatMessage(member.id, papMsg);
+  try {
+    soundEffects.playReceiveChime();
+  } catch (err) {
+    console.warn("Chime error:", err);
+  }
+
+  renderChatList();
+
+  if (isCurrentlyInRoom) {
     renderChatMessages(member);
     const msgArea = getEl("chat-messages-area");
     if (msgArea) {
@@ -803,9 +949,57 @@ function handleRequestPap() {
         msgArea.scrollTop = msgArea.scrollHeight;
       });
     }
-    renderChatList();
-  }, 1000);
+  } else {
+    showNotificationBanner(member, cleanedReplyText);
+  }
 }
+
+// In-app push notification banner when a message arrives while outside the chat
+function showNotificationBanner(member, text) {
+  const existing = document.querySelector(".wa-push-banner");
+  if (existing) existing.remove();
+
+  const banner = document.createElement("div");
+  banner.className = "wa-push-banner";
+  const memberName = getMemberDisplayName(member);
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+  banner.innerHTML = `
+    <img src="${member.avatar || AVATAR_FALLBACK}" alt="${memberName}" class="wa-push-avatar" onerror="this.src='${AVATAR_FALLBACK}'" />
+    <div class="wa-push-content">
+      <div class="wa-push-header">
+        <span class="wa-push-title">${memberName}</span>
+        <span class="wa-push-time">${timeStr}</span>
+      </div>
+      <span class="wa-push-text">${text}</span>
+    </div>
+  `;
+
+  banner.addEventListener("click", () => {
+    banner.classList.add("hiding");
+    setTimeout(() => banner.remove(), 250);
+    openChatRoom(member.id);
+  });
+
+  document.body.appendChild(banner);
+
+  setTimeout(() => {
+    if (banner.parentElement) {
+      banner.classList.add("hiding");
+      setTimeout(() => banner.remove(), 250);
+    }
+  }, 6500);
+}
+
+// Window helper to test idle chat directly
+window.triggerMemberIdleChat = (memberId) => {
+  const targetId = memberId || state.activeMemberId || "gita";
+  const member = MEMBERS.find(m => m.id === targetId || m.id.toLowerCase() === String(targetId).toLowerCase()) || MEMBERS[0];
+  if (member) {
+    triggerMemberIdleFollowUp(member);
+  }
+};
 
 // Typing Indicator Helpers
 function showTypingIndicator() {
@@ -817,14 +1011,14 @@ function showTypingIndicator() {
 
   const typingEl = document.createElement("div");
   typingEl.id = "chat-typing-indicator";
-  typingEl.className = "chat-typing-indicator incoming";
+  typingEl.className = "chat-typing-indicator typing-bubble incoming";
   typingEl.innerHTML = `
     <div class="typing-dot"></div>
     <div class="typing-dot"></div>
     <div class="typing-dot"></div>
   `;
   msgArea.appendChild(typingEl);
-  msgArea.scrollTop = msgArea.scrollHeight;
+  msgArea.scrollTo({ top: msgArea.scrollHeight, behavior: "smooth" });
 }
 
 function hideTypingIndicator() {
@@ -1000,9 +1194,11 @@ function openMemberInfoModal(memberId) {
     clearBtn.onclick = () => {
       if (confirm(`Hapus seluruh riwayat chat dengan ${displayName}?`)) {
         Storage.clearMemberChat(member.id);
-        renderChatMessages(member);
-        renderChatList();
+        Storage.removeActiveChat(member.id);
         closeMemberInfoModal();
+        closeChatRoom(true);
+        renderChatList();
+        updateTotalUnreadBadge();
         showToast("Riwayat chat member telah dibersihkan", "🗑️");
       }
     };
@@ -1033,12 +1229,19 @@ function openPhotoLightbox(photoUrl, caption, memberName, timeStr) {
 
   if (!modalEl || !imgEl) return;
 
-  imgEl.src = photoUrl;
+  const member = MEMBERS.find(m => m.id === state.activeMemberId);
+  const fallback = (member && member.avatar) ? member.avatar : AVATAR_FALLBACK;
+  imgEl.onerror = () => {
+    imgEl.onerror = null;
+    imgEl.src = fallback;
+  };
+  const safeUrl = encodeURI(decodeURI(photoUrl || fallback));
+  imgEl.src = safeUrl;
   if (captionEl) captionEl.textContent = caption || "Foto PAP Spesial 📸";
   if (senderEl) senderEl.textContent = memberName || "Member JKT48";
   if (timeEl) timeEl.textContent = timeStr || "";
   if (downloadBtn) {
-    downloadBtn.href = photoUrl;
+    downloadBtn.href = safeUrl;
     downloadBtn.download = `${(memberName || "jkt48").toLowerCase().replace(/\s+/g, "_")}_pap.jpg`;
   }
 
@@ -1252,6 +1455,7 @@ function updateModelsDropdown(provider) {
 function setupEventListeners() {
   // Mobile tab switching
   getEl("tab-chats-btn")?.addEventListener("click", () => switchTab("chats"));
+  getEl("tab-contacts-btn")?.addEventListener("click", () => switchTab("contacts"));
   getEl("tab-updates-btn")?.addEventListener("click", () => switchTab("updates"));
   getEl("tab-settings-btn")?.addEventListener("click", () => switchTab("settings"));
 
@@ -1260,6 +1464,9 @@ function setupEventListeners() {
   getEl("desktop-contacts-btn")?.addEventListener("click", () => switchTab("contacts"));
   getEl("desktop-status-btn")?.addEventListener("click", () => switchTab("updates"));
   getEl("desktop-settings-btn")?.addEventListener("click", () => switchTab("settings"));
+
+  // Desktop empty placeholder button
+  getEl("desktop-empty-contacts-btn")?.addEventListener("click", () => switchTab("contacts"));
 
   // Nav buttons for Contacts
   getEl("chats-contacts-btn")?.addEventListener("click", () => switchTab("contacts"));
@@ -1349,11 +1556,16 @@ function setupEventListeners() {
   getEl("close-member-info-modal")?.addEventListener("click", closeMemberInfoModal);
 
   // Message Send Controls
+  // Message Send Controls & Escape Handling
   getEl("chat-send-btn")?.addEventListener("click", handleSendMessage);
   getEl("chat-input-text")?.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
+    } else if (e.key === "Escape" || e.key === "Esc" || e.keyCode === 27) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeChatRoom(true);
     }
   });
 
@@ -1367,12 +1579,62 @@ function setupEventListeners() {
   getEl("chat-nav-pap")?.addEventListener("click", handleRequestPap);
   getEl("chat-camera-btn")?.addEventListener("click", handleRequestPap);
 
-  // Photo Lightbox event listeners
-  getEl("photo-lightbox-close-btn")?.addEventListener("click", closePhotoLightbox);
-  getEl("photo-lightbox-backdrop")?.addEventListener("click", closePhotoLightbox);
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closePhotoLightbox();
-  });
+  // Global Escape (Esc) key listener to exit chat room & close active modals (like WhatsApp Web)
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" || e.key === "Esc" || e.keyCode === 27) {
+      // 1. Close Photo Lightbox if open
+      const lightboxModal = getEl("photo-lightbox-modal");
+      if (lightboxModal && (lightboxModal.style.display === "flex" || lightboxModal.offsetParent !== null)) {
+        e.preventDefault();
+        e.stopPropagation();
+        closePhotoLightbox();
+        return;
+      }
+
+      // 2. Close Story Viewer if open
+      const storyModal = getEl("story-viewer-modal");
+      if (storyModal && (storyModal.style.display === "flex" || storyModal.offsetParent !== null)) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeStoryViewer();
+        return;
+      }
+
+      // 3. Close Member Info Modal if open
+      const infoModal = getEl("member-info-modal");
+      if (infoModal && (infoModal.style.display === "flex" || infoModal.offsetParent !== null)) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeMemberInfoModal();
+        return;
+      }
+
+      // 4. Close Edit Contact Modal if open
+      const contactModal = getEl("edit-contact-modal");
+      if (contactModal && (contactModal.style.display === "flex" || contactModal.offsetParent !== null)) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeEditContactModal();
+        return;
+      }
+
+      // 5. If in settings or contacts view, return to chats list
+      if (state.currentTab !== "chats") {
+        e.preventDefault();
+        e.stopPropagation();
+        switchTab("chats");
+        return;
+      }
+
+      // 6. If inside an active chat room, exit/close room (like WhatsApp Web/Desktop)
+      const chatRoomScreen = getEl("chat-room-screen");
+      if (state.activeMemberId || (chatRoomScreen && chatRoomScreen.style.display !== "none")) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeChatRoom(true);
+      }
+    }
+  }, true);
 
   // Delegasi klik foto di bubble chat untuk membuka lightbox
   const chatMsgArea = getEl("chat-messages-area");
@@ -1577,6 +1839,13 @@ function setupEventListeners() {
   getEl("clear-all-chats-btn")?.addEventListener("click", () => {
     if (confirm("Apakah Anda yakin ingin menghapus semua riwayat chat dengan idol?")) {
       Storage.clearAllChats();
+      state.activeMemberId = null;
+      if (isDesktopView()) {
+        const desktopPlaceholder = getEl("desktop-empty-placeholder");
+        if (desktopPlaceholder) desktopPlaceholder.style.display = "flex";
+        const chatRoomScreen = getEl("chat-room-screen");
+        if (chatRoomScreen) chatRoomScreen.style.display = "none";
+      }
       renderChatList();
       updateTotalUnreadBadge();
       showToast("Semua riwayat chat telah dibersihkan", "🗑️");
@@ -1586,7 +1855,15 @@ function setupEventListeners() {
   // Handle window resize
   window.addEventListener("resize", () => {
     if (isDesktopView() && !state.activeMemberId) {
-      openChatRoom("freya");
+      const activeChatIds = Storage.getActiveChatIds();
+      if (activeChatIds.length > 0) {
+        openChatRoom(activeChatIds[0]);
+      } else {
+        const desktopPlaceholder = getEl("desktop-empty-placeholder");
+        if (desktopPlaceholder) desktopPlaceholder.style.display = "flex";
+        const chatRoomScreen = getEl("chat-room-screen");
+        if (chatRoomScreen) chatRoomScreen.style.display = "none";
+      }
     }
   });
 }
@@ -1600,6 +1877,7 @@ function switchTab(tabName) {
 
   [
     getEl("tab-chats-btn"),
+    getEl("tab-contacts-btn"),
     getEl("tab-updates-btn"),
     getEl("tab-settings-btn"),
     getEl("desktop-chats-btn"),
@@ -1626,6 +1904,7 @@ function switchTab(tabName) {
     if (v) v.style.display = "flex";
     renderChatList();
   } else if (tabName === "contacts") {
+    getEl("tab-contacts-btn")?.classList.add("active");
     getEl("desktop-contacts-btn")?.classList.add("active");
     const v = getEl("view-contacts");
     if (v) v.style.display = "flex";
