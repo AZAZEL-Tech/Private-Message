@@ -14,6 +14,7 @@ const STORAGE_KEYS = {
 const DEFAULT_PROFILE = {
   name: "Fans JKT48",
   gender: "Belum disetel",
+  age: "",
   status: "Ada | Mengidolakan JKT48 ✨",
   city: "Jakarta",
   avatar: ""
@@ -69,7 +70,9 @@ export const Storage = {
   },
 
   setUserProfile(profile) {
-    localStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(profile));
+    const current = this.getUserProfile();
+    const updated = { ...current, ...profile };
+    localStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(updated));
   },
 
   getChatHistory(memberId) {

@@ -1,7 +1,41 @@
-import { Storage } from "./storage.js";
+import { Storage } from "./storage.js?v=20260930_v5";
 
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const GEMINI_ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+
+/**
+ * Menentukan apakah seorang member JKT48 lebih muda dari user (penggemar).
+ *
+ * Aturan:
+ * - Jika user menginput umur di profil:
+ *   Tahun sekarang - Tahun lahir member = Umur member.
+ *   Member lebih muda dari user (umur member < umur user) -> memanggil "Kak / Kakak / Kak [Nama]".
+ *   Member lebih tua / sebaya (umur member >= umur user) -> memanggil nama saja seperti biasa / "kamu".
+ * - Jika user belum menginput umur:
+ *   Fallback ke aturan tahun lahir: member kelahiran 2009 ke atas dianggap junior.
+ */
+export function isMemberYoungerThanUser(member, userProfile) {
+  const currentYear = new Date().getFullYear();
+  const birthDateStr = member?.birthDate || "";
+  const yearMatch = String(birthDateStr).match(/\b(\d{4})\b/);
+  const memberBirthYear = yearMatch ? parseInt(yearMatch[1], 10) : 2005;
+  const memberAge = currentYear - memberBirthYear;
+
+  const profile = userProfile || Storage.getUserProfile();
+  const rawAge = profile?.age;
+  let parsedUserAge = parseInt(rawAge, 10);
+
+  // Jika user menginput tahun lahir (misal: 2004, 2000, 1999) alih-alih umur:
+  if (parsedUserAge > 1900 && parsedUserAge <= currentYear) {
+    parsedUserAge = currentYear - parsedUserAge;
+  }
+
+  if (!isNaN(parsedUserAge) && parsedUserAge > 0) {
+    return memberAge < parsedUserAge;
+  }
+
+  return memberBirthYear >= 2009;
+}
 
 /**
  * Sanitizes idol response to remove any model thinking artifacts, meta leaks, or asterisk roleplay:
@@ -31,20 +65,46 @@ export function cleanIdolReply(text, isJunior2009Plus = false, userName = "kamu"
   // 5. Strip accidental stage slogan/mantra leaks (e.g. "Papipapipum!", "Abracadabra!") in everyday chat
   cleaned = cleaned.replace(/\b(?:papipapipum|abrakadabra|abracadabra)\b[!?,.]*/gi, "");
 
-  // 6. ATURAN PANGGILAN KETAT: Member yang lahir di bawah 2008 (<= 2008) DILARANG memanggil user "Kak / Kakak"
-  if (!isJunior2009Plus) {
+  // 6. ATURAN PANGGILAN KETAT:
+  // - Member lebih tua / sebaya (!isJunior): DILARANG memanggil user "Kak / Kakak" -> ubah jadi nama saja seperti biasa / "kamu"
+  // - Member lebih muda (isJunior): WAJIB memanggil user dengan sebutan "Kak" / "Kak [Nama]"
+  const isJunior = Boolean(isJunior2009Plus);
+  if (!isJunior) {
     if (userName && userName.toLowerCase() !== "kamu") {
-      const escaped = userName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      cleaned = cleaned.replace(new RegExp(`\\b(halo|hai|hei|pagi|siang|sore|malam)\\s+kak(?:ak)?\\s+${escaped}\\b`, "gi"), `$1 ${userName}`);
-      cleaned = cleaned.replace(new RegExp(`\\bKak(?:ak)?\\s+${escaped}\\b`, "gi"), userName);
+      const parts = userName.trim().split(/\s+/).filter(Boolean);
+      const names = [userName.trim()];
+      if (parts.length > 1) names.push(parts[0]);
+      const namePattern = names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).sort((a, b) => b.length - a.length).join("|");
+
+      cleaned = cleaned.replace(new RegExp(`\\b(halo|hai|hei|pagi|siang|sore|malam)\\s*,?\\s*kak(?:ak)?\\s+(${namePattern})\\b`, "gi"), `$1 $2`);
+      cleaned = cleaned.replace(new RegExp(`\\bKak(?:ak)?\\s+(${namePattern})\\b`, "gi"), "$1");
     }
-    cleaned = cleaned.replace(/\b(halo|hai|hei|pagi|siang|sore|malam)\s+kak(?:ak)?\b/gi, "$1");
+    cleaned = cleaned.replace(/\b(halo|hai|hei|pagi|siang|sore|malam)\s*,?\\s*kak(?:ak)?\b/gi, "$1");
     cleaned = cleaned.replace(/\b(iya|ya|oke|siap)\s*,?\s*kak(?:ak)?\b/gi, "$1");
     cleaned = cleaned.replace(/,\s*kak(?:ak)?\b/gi, "");
     cleaned = cleaned.replace(/\bkak(?:ak)?\s*,\s*/gi, "");
     // Strip vocative 'kak/kakak' at the beginning of sentence if any (e.g. "Kak kamu lagi apa?" -> "Kamu lagi apa?")
     cleaned = cleaned.replace(/^(?:kak(?:ak)?\s*,\s*|kak(?:ak)?\s+)+/i, "");
+    cleaned = cleaned.replace(/\bKak(?:ak)?\b/g, "kamu");
+    cleaned = cleaned.replace(/\bkak(?:ak)?\b/g, "kamu");
     cleaned = cleaned.replace(/\bkamu\s+kamu\b/gi, "kamu");
+  } else {
+    // Member lebih muda (isJunior) memanggil penggemar "Kak / Kak [Nama]"
+    if (userName && userName.toLowerCase() !== "kamu") {
+      const parts = userName.trim().split(/\s+/).filter(Boolean);
+      const names = [userName.trim()];
+      if (parts.length > 1) names.push(parts[0]);
+      const namePattern = names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).sort((a, b) => b.length - a.length).join("|");
+
+      // Setiap kali nama penggemar disebut tanpa awalan 'Kak'/'Kakak', tambahkan 'Kak'
+      const nameRegex = new RegExp(`(\\b(?:kak(?:ak)?|ci(?:ci)?)\\s+)?\\b(${namePattern})\\b`, "gi");
+      cleaned = cleaned.replace(nameRegex, (match, prefix, matchedName) => {
+        return prefix ? match : `Kak ${matchedName}`;
+      });
+    }
+
+    // Jika member lebih muda menyapa dengan sapaan "Halo kamu" -> "Halo Kakak"
+    cleaned = cleaned.replace(/\b(halo|hai|hei|pagi|siang|sore|malam)\s+kamu\b/gi, "$1 Kakak");
   }
 
   // 6.5. Naturalisasi bahasa kaku / formal textbook menjadi gaya chat WhatsApp anak muda yang luwes
@@ -569,19 +629,34 @@ export const AIService = {
     const userName = hasCustomUserName ? rawName : "kamu";
     const memberName = member?.shortName || member?.nickname || (member?.name ? member.name.split(" ")[0] : "aku");
 
-    // Check member birth year for calling convention (born <= 2008: "kamu", born >= 2009: "Kak/Kakak")
+    // Check member age vs user age for calling convention
+    const currentYear = new Date().getFullYear();
     const birthDateStr = member?.birthDate || "";
     const yearMatch = String(birthDateStr).match(/\b(\d{4})\b/);
     const birthYear = yearMatch ? parseInt(yearMatch[1], 10) : 2005;
-    const isJunior2009Plus = birthYear >= 2009;
+    const memberAge = currentYear - birthYear;
 
-    const honorificRule = isJunior2009Plus
-      ? `ATURAN PANGGILAN KEPADA PENGGEMAR (MEMBER KELAHIRAN 2009 KE ATAS - MEMBER MUDA/JUNIOR):
-- Kamu lahir tahun ${birthYear} (kelahiran tahun 2009 ke atas). Panggilan "Kak / Kakak" KHUSUS untuk generasimu yang lebih muda.
-- WAJIB panggil penggemar dengan sebutan sopan dan santun: "Kak" atau "Kakak" (misalnya: "Halo Kak ${userName}", "Semangat yaa Kak!", "Iya Kak, makasih ya").`
-      : `ATURAN PANGGILAN KEPADA PENGGEMAR (MEMBER KELAHIRAN 2008 KE BAWAH):
-- Kamu lahir tahun ${birthYear} (kelahiran tahun 2008 ke bawah / sebaya atau lebih dewasa).
-- CARA DIRIMU MENYAPA PENGGEMAR: Panggil penggemar dengan sebutan "kamu" atau sebut langsung nama panggilan penggemar ("${userName}"). Jangan gunakan kata "Kak / Kakak" saat menyapa penggemar.
+    const userAgeRaw = profile?.age;
+    const parsedUserAge = parseInt(userAgeRaw, 10);
+    const hasUserAge = !isNaN(parsedUserAge) && parsedUserAge > 0;
+    const userAge = hasUserAge ? parsedUserAge : null;
+
+    const isJunior = isMemberYoungerThanUser(member, profile);
+    const isJunior2009Plus = isJunior;
+
+    const honorificRule = isJunior
+      ? `ATURAN PANGGILAN KEPADA PENGGEMAR (MEMBER LEBIH MUDA DARI PENGGEMAR - MEMBER JUNIOR / ADIK):
+- Umurmu: ${memberAge} tahun (lahir ${birthYear}).
+- Umur penggemar: ${userAge ? `${userAge} tahun (kamu LEBIH MUDA dari penggemar)` : "LEBIH TUA dari kamu"}.
+- KARENA KAMU LEBIH MUDA: WAJIB panggil penggemar dengan sebutan sopan dan santun: "Kak" atau "Kakak" atau "Kak ${userName}" (misalnya: "Halo Kak ${userName}", "Semangat yaa Kak!", "Iya Kak, makasih ya", "Kak ${userName} lagi apa?").
+- DILARANG KERAS memanggil penggemar hanya dengan nama telanjang "${userName}" tanpa awalan "Kak"! Selalu sertakan sebutan "Kak" atau "Kakak".`
+      : `ATURAN PANGGILAN KEPADA PENGGEMAR (MEMBER LEBIH TUA / SEBAYA DENGAN PENGGEMAR):
+- Umurmu: ${memberAge} tahun (lahir ${birthYear}).
+- Umur penggemar: ${userAge ? `${userAge} tahun (kamu LEBIH TUA / SEBAYA dengan penggemar)` : "LEBIH MUDA / SEBAYA dengan kamu"}.
+- KARENA KAMU LEBIH TUA ATAU SEBAYA: DILARANG KERAS memanggil penggemar dengan sebutan "Kak", "Kakak", atau "Kak ${userName}"! Panggilan "Kak" HANYA boleh dipakai oleh member yang lebih muda!
+- CARA DIRIMU MENYAPA PENGGEMAR: Panggil penggemar HANYA dengan nama panggilannya langsung ("${userName}") seperti biasa, atau dengan sebutan akrab "kamu".
+  * Contoh yang BENAR: "Halo ${userName}!", "Semangat yaa kamu!", "Santai aja sama aku", "Makasih banyak ya ${userName}!".
+  * JANGAN PERNAH menyapa "Halo Kak", "Iya Kak", atau menyelipkan kata "Kak" di dalam pesan!
 - JIKA PENGGEMAR MEMANGGIL DIRIMU "kak", "kakak", "ci", "cici", "dek", atau namamu ("${memberName}"):
   * ITU ADALAH PANGGILAN AKRAB & WAJAR DARI PENGGEMAR!
   * DILARANG KERAS MEMPROTES, MENEGUR, ATAU MELARANG PANGGILAN PENGGEMAR (DILARANG KERAS berkata "Gak usah panggil kak", "Jangan panggil aku kakak", "Siapa yang kamu panggil kak?", dll.)!
@@ -796,7 +871,7 @@ ${papContextGuide}${idleFollowUpGuide}`;
       const recent = chatHistory.slice(-14);
       for (const msg of recent) {
         if (!msg || !msg.text || msg.isSpecial || msg.isSystem) continue;
-        const cleanText = msg.isUser ? String(msg.text).trim() : cleanIdolReply(String(msg.text));
+        const cleanText = String(msg.text).trim();
         if (!cleanText) continue;
         rawTurns.push({
           role: msg.isUser ? "user" : "model",
@@ -990,7 +1065,7 @@ ${papContextGuide}${idleFollowUpGuide}`;
       const recent = chatHistory.slice(-14);
       for (const msg of recent) {
         if (!msg || !msg.text || msg.isSpecial || msg.isSystem) continue;
-        const cleanContent = msg.isUser ? String(msg.text).trim() : cleanIdolReply(String(msg.text));
+        const cleanContent = String(msg.text).trim();
         if (!cleanContent) continue;
         turns.push({
           role: msg.isUser ? "user" : "assistant",
@@ -1112,8 +1187,11 @@ ${papContextGuide}${idleFollowUpGuide}`;
       throw new Error("Respon kosong dari Groq. Beralih ke Mode Offline.");
     }
 
-    // Clean artifacts, thinking tags, or meta commentary
-    reply = cleanIdolReply(reply);
+    if (reply) {
+      reply = reply.replace(/<(?:think|thought)>[\s\S]*?<\/(?:think|thought)>/gi, "").trim();
+      reply = reply.replace(/^(?:\*+)?(?:Formulate the Response Strategy|Thinking Process|Thought Process|Plan|Strategy|Reasoning)(?:\*+)?:?\s*/i, "").trim();
+      reply = reply.replace(/^[A-Za-z0-9\s_-]+:\s*/, "").trim();
+    }
 
     return {
       success: true,
@@ -1137,11 +1215,12 @@ ${papContextGuide}${idleFollowUpGuide}`;
     const cleanWords = lower.replace(/[^\\w\\s]/g, " ").split(/\\s+/).filter(Boolean);
     const archetype = getMemberArchetype(member);
 
-    // Check member birth year for calling convention (born <= 2008: "kamu", born >= 2009: "Kak/Kakak")
+    // Check member birth year & age for calling convention
     const birthDateStr = member?.birthDate || "";
     const yearMatch = String(birthDateStr).match(/\b(\d{4})\b/);
     const birthYear = yearMatch ? parseInt(yearMatch[1], 10) : 2005;
-    const isJunior2009Plus = birthYear >= 2009;
+    const isJunior = isMemberYoungerThanUser(member, userProfile);
+    const isJunior2009Plus = isJunior;
 
     // Helper to pick a response that wasn't used in recent messages to avoid repetitions
     const recentBotTexts = (chatHistory || [])

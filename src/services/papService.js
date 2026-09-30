@@ -1,5 +1,5 @@
-import { PM_PHOTOS_DATA, PM_VOICE_NOTES } from "../data/pmPhotos.js?v=20260921_v14";
-import { getMemberArchetype } from "./aiService.js?v=20260921_v14";
+import { PM_PHOTOS_DATA, PM_VOICE_NOTES } from "../data/pmPhotos.js?v=20260930_v5";
+import { getMemberArchetype, isMemberYoungerThanUser } from "./aiService.js?v=20260930_v5";
 
 // Riwayat foto yang baru saja dikirim per member agar tidak berulang berturut-turut
 const recentMemberPhotos = new Map();
@@ -123,16 +123,13 @@ export const PapService = {
    * @param {Object} member - Objek member
    * @returns {string} - Caption ramah dan natural
    */
-  getRandomCaption(member) {
+  getRandomCaption(member, userProfile) {
     const name = member?.shortName || member?.name || "aku";
     const archetype = getMemberArchetype(member);
 
-    // Honorific check for birth year
-    const birthDateStr = member?.birthDate || "";
-    const yearMatch = String(birthDateStr).match(/\b(\d{4})\b/);
-    const birthYear = yearMatch ? parseInt(yearMatch[1], 10) : 2005;
-    const isJunior2009Plus = birthYear >= 2009;
-    const uKakak = isJunior2009Plus ? "Kakak" : "kamu";
+    // Honorific check based on member age vs user age
+    const isJunior = isMemberYoungerThanUser(member, userProfile);
+    const uKakak = isJunior ? "Kakak" : "kamu";
 
     if (archetype === "tsundere_cool") {
       const gitaCaptions = [
@@ -213,10 +210,14 @@ export const PapService = {
     }
 
     if (archetype === "trainee_school") {
-      const traineeCaptions = [
+      const traineeCaptions = isJunior ? [
         `Ini foto aku tadi siang Kak... Maaf ya kalau masih agak canggung hehe 📸`,
         `Spesial buat Kakak yang udah selalu semangatin aku! Disimpan yaa Kak 📸`,
         `Nih foto aku hari ini Kak! Makasih yaa udah minta foto aku hehe 📸`
+      ] : [
+        `Ini foto aku tadi siang... Maaf ya kalau masih agak canggung hehe 📸`,
+        `Spesial buat kamu yang udah selalu semangatin aku! Disimpan yaa 📸`,
+        `Nih foto aku hari ini! Makasih yaa udah minta foto aku hehe 📸`
       ];
       return traineeCaptions[Math.floor(Math.random() * traineeCaptions.length)];
     }

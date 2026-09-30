@@ -1,10 +1,10 @@
-import { MEMBERS } from "./data/members.js?v=20260929_v2";
-import { STORIES_DATA } from "./data/stories.js?v=20260929_v2";
-import { AI_MODELS } from "./data/models.js?v=20260929_v2";
-import { Storage } from "./services/storage.js?v=20260929_v2";
-import { AIService, limitEmojis } from "./services/aiService.js?v=20260929_v2";
-import { soundEffects } from "./services/soundEffects.js?v=20260929_v2";
-import { PapService } from "./services/papService.js?v=20260929_v2";
+import { MEMBERS } from "./data/members.js?v=20260930_v5";
+import { STORIES_DATA } from "./data/stories.js?v=20260930_v5";
+import { AI_MODELS } from "./data/models.js?v=20260930_v5";
+import { Storage } from "./services/storage.js?v=20260930_v5";
+import { AIService, limitEmojis } from "./services/aiService.js?v=20260930_v5";
+import { soundEffects } from "./services/soundEffects.js?v=20260930_v5";
+import { PapService } from "./services/papService.js?v=20260930_v5";
 
 // Global App State
 const state = {
@@ -1162,7 +1162,12 @@ function openMemberInfoModal(memberId) {
   }
   if (bioEl) bioEl.textContent = `"${member.bio}"`;
   if (teamEl) teamEl.textContent = `${member.team} • ${member.generation}`;
-  if (birthEl) birthEl.textContent = `${member.birthDate} (Gol. ${member.bloodType})`;
+  if (birthEl) {
+    const yearMatch = String(member.birthDate || "").match(/\b(\d{4})\b/);
+    const memberAge = yearMatch ? new Date().getFullYear() - parseInt(yearMatch[1], 10) : null;
+    const ageText = memberAge ? ` (${memberAge} tahun)` : "";
+    birthEl.textContent = `${member.birthDate}${ageText} (Gol. ${member.bloodType})`;
+  }
   if (streakEl) {
     if (currentStreak >= 3) {
       streakEl.innerHTML = `🔥 ${currentStreak} Hari Berturut-turut <span style="font-size:11px;color:#f97316;font-weight:700;">(Streak Api Menyala!)</span>`;
@@ -1416,6 +1421,22 @@ function renderSettingsForm() {
 
   const genderSelect = getEl("profile-gender-select");
   if (genderSelect) genderSelect.value = profile.gender || "Belum disetel";
+
+  const ageInput = getEl("profile-age-input");
+  const ageHint = getEl("profile-age-status-hint");
+  if (ageInput) {
+    ageInput.value = (profile.age !== undefined && profile.age !== null) ? profile.age : "";
+    if (ageHint) {
+      const curYear = new Date().getFullYear();
+      let a = parseInt(profile.age, 10);
+      if (a > 1900 && a <= curYear) a = curYear - a;
+      if (a && a > 0) {
+        ageHint.textContent = `✓ Umur tersimpan: ${a} tahun (Member lebih muda otomatis memanggilmu Kak)`;
+      } else {
+        ageHint.textContent = ``;
+      }
+    }
+  }
 
   const statusInput = getEl("profile-status-input");
   if (statusInput) statusInput.value = profile.status || "";
@@ -1767,6 +1788,8 @@ function setupEventListeners() {
     const model = getEl("groq-model-select")?.value;
     const name = getEl("profile-name-input")?.value || "Fans JKT48";
     const gender = getEl("profile-gender-select")?.value || "Belum disetel";
+    const ageVal = getEl("profile-age-input")?.value?.trim();
+    const age = ageVal ? parseInt(ageVal, 10) : "";
     const status = getEl("profile-status-input")?.value || "";
     const city = getEl("profile-city-input")?.value || "Jakarta";
     const testResultEl = getEl("test-connection-result");
@@ -1775,7 +1798,7 @@ function setupEventListeners() {
     Storage.setAiProvider(provider);
     Storage.setApiKey(apiKey);
     Storage.setSelectedModel(model);
-    Storage.setUserProfile({ name, gender, status, city });
+    Storage.setUserProfile({ name, gender, age, status, city });
 
     const desktopProfileName = getEl("desktop-profile-name");
     if (desktopProfileName) {
@@ -1820,9 +1843,44 @@ function setupEventListeners() {
         testResultEl.textContent = "Mode offline aktif (tanpa API Key).";
         testResultEl.style.color = "var(--ios-text-secondary)";
       }
-      showToast("Profil disimpan (Mode Simulasi Offline).", "✅");
+      showToast("Profil disimpan.", "✅");
     }
   });
+
+  // Real-time auto-save for user profile fields (no need to scroll & click button)
+  const autoSaveProfile = () => {
+    const name = getEl("profile-name-input")?.value?.trim() || "Fans JKT48";
+    const gender = getEl("profile-gender-select")?.value || "Belum disetel";
+    const ageRaw = getEl("profile-age-input")?.value?.trim();
+    let age = ageRaw ? parseInt(ageRaw, 10) : "";
+    const curYear = new Date().getFullYear();
+    if (age > 1900 && age <= curYear) age = curYear - age;
+
+    const status = getEl("profile-status-input")?.value?.trim() || "";
+    const city = getEl("profile-city-input")?.value?.trim() || "Jakarta";
+
+    Storage.setUserProfile({ name, gender, age, status, city });
+
+    const desktopProfileName = getEl("desktop-profile-name");
+    if (desktopProfileName) {
+      desktopProfileName.textContent = name;
+    }
+
+    const ageHint = getEl("profile-age-status-hint");
+    if (ageHint) {
+      if (age && age > 0) {
+        ageHint.textContent = `✓ Umur tersimpan: ${age} tahun (Member lebih muda otomatis memanggilmu Kak)`;
+      } else {
+        ageHint.textContent = ``;
+      }
+    }
+  };
+
+  getEl("profile-name-input")?.addEventListener("input", autoSaveProfile);
+  getEl("profile-age-input")?.addEventListener("input", autoSaveProfile);
+  getEl("profile-gender-select")?.addEventListener("change", autoSaveProfile);
+  getEl("profile-status-input")?.addEventListener("input", autoSaveProfile);
+  getEl("profile-city-input")?.addEventListener("input", autoSaveProfile);
 
   // Gemini Setup Banner button
   getEl("btn-setup-gemini")?.addEventListener("click", () => {
