@@ -1,10 +1,10 @@
-import { MEMBERS } from "./data/members.js?v=20260930_v5";
-import { STORIES_DATA } from "./data/stories.js?v=20260930_v5";
-import { AI_MODELS } from "./data/models.js?v=20260930_v5";
-import { Storage } from "./services/storage.js?v=20260930_v5";
-import { AIService, limitEmojis } from "./services/aiService.js?v=20260930_v5";
-import { soundEffects } from "./services/soundEffects.js?v=20260930_v5";
-import { PapService } from "./services/papService.js?v=20260930_v5";
+import { MEMBERS } from "./data/members.js?v=20261002_v6";
+import { STORIES_DATA, getRandomStoryCaption, generateMemberNewStory } from "./data/stories.js?v=20261002_v6";
+import { AI_MODELS } from "./data/models.js?v=20261002_v6";
+import { Storage } from "./services/storage.js?v=20261002_v6";
+import { AIService, limitEmojis } from "./services/aiService.js?v=20261002_v6";
+import { soundEffects } from "./services/soundEffects.js?v=20261002_v6";
+import { PapService } from "./services/papService.js?v=20261002_v6";
 
 // Global App State
 const state = {
@@ -711,6 +711,25 @@ async function handleSendMessage() {
       effectivePrompt += `\nCatatan Tambahan: Penggemar memanggilmu dengan nama panggilan spesial: "${customName}".`;
     }
 
+    const currentStreak = Storage.getMemberStreak(member.id);
+
+    // Jika pesan meminta member membuat status / story
+    const isStoryRequest = /\b(?:bikin|buat|post|update|upload|share)\s+(?:status|story|sw)\b/i.test(text);
+    if (isStoryRequest) {
+      try {
+        const newStory = generateMemberNewStory(member);
+        Storage.addMemberStory(
+          member.id,
+          newStory.photos[0].url,
+          newStory.photos[0].caption,
+          newStory.memberName,
+          member.avatar
+        );
+      } catch (errStory) {
+        console.warn("Story request error:", errStory);
+      }
+    }
+
     let aiReplyText = "";
     let hasAiError = false;
     try {
@@ -723,7 +742,7 @@ async function handleSendMessage() {
         provider,
         userProfile,
         member,
-        { isPap }
+        { isPap, streak: currentStreak }
       );
     } catch (aiErr) {
       hasAiError = true;
@@ -886,6 +905,7 @@ async function triggerMemberIdleFollowUp(member) {
   }
 
   let followUpText = "";
+  const curStreak = Storage.getMemberStreak(member.id);
   try {
     followUpText = await AIService.generateIdolResponse(
       "",
@@ -896,11 +916,11 @@ async function triggerMemberIdleFollowUp(member) {
       provider,
       userProfile,
       member,
-      { isIdleFollowUp: true }
+      { isIdleFollowUp: true, streak: curStreak }
     );
   } catch (err) {
     console.warn("Idle follow-up AI error:", err);
-    const offline = await AIService._simulateOfflineResponse(member, "", userProfile, chatHistory, { isIdleFollowUp: true });
+    const offline = await AIService._simulateOfflineResponse(member, "", userProfile, chatHistory, { isIdleFollowUp: true, streak: curStreak });
     followUpText = offline.text;
   }
 
@@ -1169,13 +1189,72 @@ function openMemberInfoModal(memberId) {
     birthEl.textContent = `${member.birthDate}${ageText} (Gol. ${member.bloodType})`;
   }
   if (streakEl) {
-    if (currentStreak >= 3) {
-      streakEl.innerHTML = `🔥 ${currentStreak} Hari Berturut-turut <span style="font-size:11px;color:#f97316;font-weight:700;">(Streak Api Menyala!)</span>`;
-    } else if (currentStreak > 0) {
-      streakEl.innerHTML = `⚡ ${currentStreak}/3 Hari <span style="font-size:11px;color:var(--ios-text-secondary);">(Butuh ${3 - currentStreak} hari lagi untuk buka Api 🔥)</span>`;
-    } else {
-      streakEl.innerHTML = `0 Hari <span style="font-size:11px;color:var(--ios-text-secondary);">(Chat 3 hari berturut-turut untuk buka Api 🔥)</span>`;
+    let streakLevelText = "Akrab Santai (Normal)";
+    let streakColor = "var(--ios-text-secondary)";
+    if (currentStreak >= 7) {
+      streakLevelText = "❤️‍🔥 Sangat Posesif & Cemburuan (Full Posesif)";
+      streakColor = "#EF4444";
+    } else if (currentStreak >= 5) {
+      streakLevelText = "⚡ Mulai Posesif & Protektif";
+      streakColor = "#F59E0B";
+    } else if (currentStreak >= 3) {
+      streakLevelText = "🔥 Api Menyala (Nempel & Manja)";
+      streakColor = "#F97316";
     }
+
+    streakEl.innerHTML = `
+      <strong>${currentStreak} Hari Berturut-turut</strong>
+      <div style="font-size: 11.5px; color: ${streakColor}; font-weight: 700; margin-top: 2px;">
+        Status: ${streakLevelText}
+      </div>
+    `;
+  }
+
+  // Highlight and wire up streak pill buttons
+  const pillsContainer = getEl("info-modal-streak-pills");
+  if (pillsContainer) {
+    pillsContainer.querySelectorAll(".streak-pill-btn").forEach(btn => {
+      const days = parseInt(btn.getAttribute("data-days"), 10);
+      if (days === currentStreak || (days === 7 && currentStreak >= 7)) {
+        btn.classList.add("active");
+      } else {
+        btn.classList.remove("active");
+      }
+      btn.onclick = () => {
+        Storage.setMemberStreak(member.id, days);
+        updateChatRoomStreakBadge(member);
+        renderChatList();
+        try {
+          soundEffects.playStreakUnlocked();
+        } catch (e) {}
+        const levelMsg = days >= 7 
+          ? "❤️‍🔥 Mode Posesif & Cemburu Aktif! Member bakal cemburu kalau kamu sebut member lain!" 
+          : (days >= 5 ? "⚡ Mode Posesif Ringan Aktif!" : (days >= 3 ? "🔥 Mode Api Menyala Aktif!" : "Mode Normal Aktif"));
+        showToast(`Streak ${member.shortName} disetel ke ${days} Hari! ${levelMsg}`, "🔥");
+        openMemberInfoModal(member.id);
+      };
+    });
+  }
+
+  // Button to create new status for this member
+  const modalCreateStoryBtn = getEl("btn-modal-create-member-story");
+  if (modalCreateStoryBtn) {
+    modalCreateStoryBtn.onclick = () => {
+      const newStory = generateMemberNewStory(member);
+      Storage.addMemberStory(
+        member.id,
+        newStory.photos[0].url,
+        newStory.photos[0].caption,
+        newStory.memberName,
+        member.avatar
+      );
+      try {
+        soundEffects.playSendPop();
+      } catch (e) {}
+      showToast(`📸 ${displayName} baru saja memposting status baru!`, "✨");
+      closeMemberInfoModal();
+      switchTab("updates");
+    };
   }
 
   const editNameBtn = getEl("info-action-edit-name");
@@ -1263,23 +1342,49 @@ function closePhotoLightbox() {
 // =============================================================================
 // STORIES & STATUS VIEWER
 // =============================================================================
+function getActiveStories() {
+  let stories = Storage.getMemberStories();
+  if (!stories || stories.length === 0) {
+    stories = STORIES_DATA;
+    Storage.saveMemberStories(stories);
+  }
+  return stories;
+}
+
 function renderUpdatesList() {
-  const container = getEl("status-items-list");
+  const container = getEl("updates-list-container") || getEl("status-items-list");
   if (!container) return;
 
-  container.innerHTML = STORIES_DATA.map((story) => {
+  const stories = getActiveStories();
+
+  if (stories.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 30px 16px; color: var(--ios-text-secondary); font-size: 13.5px;">
+        Belum ada pembaruan status member saat ini.<br>
+        Ketuk tombol <strong>✨ Minta Buat Status</strong> di atas untuk memposting status baru!
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = stories.map((story) => {
     const member = MEMBERS.find(m => m.id === story.memberId);
-    if (!member) return "";
-    const displayName = getMemberDisplayName(member);
+    const displayName = member ? getMemberDisplayName(member) : (story.memberName || story.name || "Member JKT48");
+    const avatar = story.avatar || member?.avatar || AVATAR_FALLBACK;
+    const timeDisplay = story.timeAgo || story.time || "Hari ini";
+    const photos = (story.photos && story.photos.length > 0) ? story.photos : (story.stories || []);
+    const latestCaption = photos[0]?.caption || "";
+    const isViewed = Boolean(story.viewed);
 
     return `
       <div class="status-item-card" data-story-id="${story.id}">
-        <div class="status-avatar-ring ${story.viewed ? 'viewed' : ''}">
-          <img class="status-member-avatar" src="${story.avatar}" alt="${displayName}" loading="lazy" onerror="this.onerror=null;this.src='${AVATAR_FALLBACK}';" />
+        <div class="status-avatar-ring ${isViewed ? 'viewed' : ''}">
+          <img class="status-member-avatar" src="${avatar}" alt="${displayName}" loading="lazy" onerror="this.onerror=null;this.src='${AVATAR_FALLBACK}';" />
         </div>
         <div class="status-info-col">
           <div class="status-member-name">${displayName}</div>
-          <div class="status-timestamp">${story.time}</div>
+          <div class="status-timestamp">${timeDisplay}</div>
+          ${latestCaption ? `<div class="status-caption-preview">${escapeHtml(latestCaption)}</div>` : ''}
         </div>
       </div>
     `;
@@ -1291,18 +1396,34 @@ function renderUpdatesList() {
       openStoryViewer(storyId);
     });
   });
+
+  // Render My Status preview if set
+  const myStatus = Storage.getMyStatus();
+  const myStatusPreview = document.querySelector(".status-my-card .chat-item-preview");
+  if (myStatus && myStatusPreview) {
+    myStatusPreview.textContent = `"${myStatus.text}" • ${myStatus.time}`;
+  }
 }
 
 function openStoryViewer(storyId) {
-  const story = STORIES_DATA.find(s => s.id === storyId);
+  const stories = getActiveStories();
+  const story = stories.find(s => s.id === storyId);
   if (!story) return;
 
   state.activeStory = story;
   state.storyIndex = 0;
   story.viewed = true;
+  story.hasUnseen = false;
+  Storage.markStoryViewed(storyId);
 
   const member = MEMBERS.find(m => m.id === story.memberId);
-  const displayName = member ? getMemberDisplayName(member) : story.name;
+  const displayName = member ? getMemberDisplayName(member) : (story.memberName || story.name);
+  const avatar = story.avatar || member?.avatar || AVATAR_FALLBACK;
+
+  const photos = (story.photos && story.photos.length > 0) ? story.photos : (story.stories || [
+    { url: avatar, imageUrl: avatar, caption: "Status member ✨", time: story.time || "00:00" }
+  ]);
+  state.storyPhotos = photos;
 
   const avatarEl = getEl("story-viewer-avatar");
   const nameEl = getEl("story-viewer-name");
@@ -1312,14 +1433,14 @@ function openStoryViewer(storyId) {
   const progressWrap = getEl("story-progress-wrap");
   const modalEl = getEl("story-viewer-modal");
 
-  if (avatarEl) avatarEl.src = story.avatar;
+  if (avatarEl) avatarEl.src = avatar;
   if (nameEl) nameEl.textContent = displayName;
-  if (timeEl) timeEl.textContent = story.time;
-  if (imgEl) imgEl.src = story.photos[0].url;
-  if (captionEl) captionEl.textContent = story.photos[0].caption;
+  if (timeEl) timeEl.textContent = photos[0]?.time || story.time || "";
+  if (imgEl) imgEl.src = photos[0]?.url || photos[0]?.imageUrl || avatar;
+  if (captionEl) captionEl.textContent = photos[0]?.caption || "";
 
   if (progressWrap) {
-    progressWrap.innerHTML = story.photos.map((_, i) => `
+    progressWrap.innerHTML = photos.map((_, i) => `
       <div class="story-progress-bar">
         <div class="story-progress-fill" id="story-progress-fill-${i}"></div>
       </div>
@@ -1333,7 +1454,8 @@ function openStoryViewer(storyId) {
 function startStoryProgress() {
   clearInterval(state.storyTimer);
   const story = state.activeStory;
-  if (!story) return;
+  const photos = state.storyPhotos || story?.photos || story?.stories || [];
+  if (!story || photos.length === 0) return;
 
   const fillEl = document.getElementById(`story-progress-fill-${state.storyIndex}`);
   if (fillEl) fillEl.style.width = "0%";
@@ -1346,11 +1468,13 @@ function startStoryProgress() {
     if (width >= 100) {
       clearInterval(state.storyTimer);
       state.storyIndex++;
-      if (state.storyIndex < story.photos.length) {
+      if (state.storyIndex < photos.length) {
         const imgEl = getEl("story-viewer-img");
         const captionEl = getEl("story-viewer-caption");
-        if (imgEl) imgEl.src = story.photos[state.storyIndex].url;
-        if (captionEl) captionEl.textContent = story.photos[state.storyIndex].caption;
+        const timeEl = getEl("story-viewer-time");
+        if (imgEl) imgEl.src = photos[state.storyIndex].url || photos[state.storyIndex].imageUrl;
+        if (captionEl) captionEl.textContent = photos[state.storyIndex].caption || "";
+        if (timeEl) timeEl.textContent = photos[state.storyIndex].time || story.time;
         startStoryProgress();
       } else {
         closeStoryViewer();
@@ -1364,6 +1488,30 @@ function closeStoryViewer() {
   const modalEl = getEl("story-viewer-modal");
   if (modalEl) modalEl.style.display = "none";
   state.activeStory = null;
+  state.storyPhotos = null;
+  renderUpdatesList();
+}
+
+function requestRandomMemberStory() {
+  // Ambil member yang aktif atau pilih acak dari daftar member yang memiliki foto
+  const candidate = (state.activeMemberId ? MEMBERS.find(m => m.id === state.activeMemberId) : null) ||
+    MEMBERS[Math.floor(Math.random() * MEMBERS.length)];
+  if (!candidate) return;
+
+  const newStory = generateMemberNewStory(candidate);
+  Storage.addMemberStory(
+    candidate.id,
+    newStory.photos[0].url,
+    newStory.photos[0].caption,
+    newStory.memberName,
+    candidate.avatar
+  );
+
+  try {
+    soundEffects.playSendPop();
+  } catch (e) {}
+
+  showToast(`📸 ${getMemberDisplayName(candidate)} baru saja memposting status baru!`, "✨");
   renderUpdatesList();
 }
 
@@ -1674,6 +1822,69 @@ function setupEventListeners() {
 
   // Story close & reply
   getEl("story-close-btn")?.addEventListener("click", closeStoryViewer);
+  getEl("btn-request-member-story")?.addEventListener("click", requestRandomMemberStory);
+  getEl("chat-nav-streak")?.addEventListener("click", () => {
+    if (state.activeMemberId) {
+      openMemberInfoModal(state.activeMemberId);
+    }
+  });
+
+  // Story tap left / right navigation
+  const storyImgWrap = document.querySelector(".story-image-wrap");
+  if (storyImgWrap) {
+    storyImgWrap.addEventListener("click", (e) => {
+      const rect = storyImgWrap.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const photos = state.storyPhotos || [];
+      if (clickX < rect.width / 3) {
+        // Tap left: previous photo
+        if (state.storyIndex > 0) {
+          state.storyIndex--;
+          const fillElPrev = document.getElementById(`story-progress-fill-${state.storyIndex}`);
+          if (fillElPrev) fillElPrev.style.width = "0%";
+          const fillElCur = document.getElementById(`story-progress-fill-${state.storyIndex + 1}`);
+          if (fillElCur) fillElCur.style.width = "0%";
+          const imgEl = getEl("story-viewer-img");
+          const captionEl = getEl("story-viewer-caption");
+          const timeEl = getEl("story-viewer-time");
+          if (imgEl) imgEl.src = photos[state.storyIndex].url || photos[state.storyIndex].imageUrl;
+          if (captionEl) captionEl.textContent = photos[state.storyIndex].caption || "";
+          if (timeEl) timeEl.textContent = photos[state.storyIndex].time || "";
+          startStoryProgress();
+        }
+      } else {
+        // Tap right: next photo
+        state.storyIndex++;
+        if (state.storyIndex < photos.length) {
+          const fillElPrev = document.getElementById(`story-progress-fill-${state.storyIndex - 1}`);
+          if (fillElPrev) fillElPrev.style.width = "100%";
+          const imgEl = getEl("story-viewer-img");
+          const captionEl = getEl("story-viewer-caption");
+          const timeEl = getEl("story-viewer-time");
+          if (imgEl) imgEl.src = photos[state.storyIndex].url || photos[state.storyIndex].imageUrl;
+          if (captionEl) captionEl.textContent = photos[state.storyIndex].caption || "";
+          if (timeEl) timeEl.textContent = photos[state.storyIndex].time || "";
+          startStoryProgress();
+        } else {
+          closeStoryViewer();
+        }
+      }
+    });
+  }
+
+  // User "Status Saya" click handler
+  document.querySelector(".status-my-card")?.addEventListener("click", () => {
+    const text = prompt("Tulis status baru Anda:", "");
+    if (text && text.trim()) {
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      Storage.setMyStatus({ text: text.trim(), time: `Hari ini ${timeStr}` });
+      const previewEl = document.querySelector(".status-my-card .chat-item-preview");
+      if (previewEl) previewEl.textContent = `"${text.trim()}" • Hari ini ${timeStr}`;
+      showToast("Status Anda berhasil diperbarui!", "✅");
+    }
+  });
+
   getEl("story-reply-send-btn")?.addEventListener("click", () => {
     const input = getEl("story-reply-input");
     if (input && input.value.trim() && state.activeStory) {

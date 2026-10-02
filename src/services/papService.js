@@ -1,5 +1,5 @@
-import { PM_PHOTOS_DATA, PM_VOICE_NOTES } from "../data/pmPhotos.js?v=20260930_v5";
-import { getMemberArchetype, isMemberYoungerThanUser } from "./aiService.js?v=20260930_v5";
+import { PM_PHOTOS_DATA, PM_VOICE_NOTES } from "../data/pmPhotos.js?v=20261002_v6";
+import { getMemberArchetype, isMemberYoungerThanUser } from "./aiService.js?v=20261002_v6";
 
 // Riwayat foto yang baru saja dikirim per member agar tidak berulang berturut-turut
 const recentMemberPhotos = new Map();

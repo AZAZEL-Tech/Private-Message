@@ -8,7 +8,9 @@ const STORAGE_KEYS = {
   SOUND_ENABLED: "xidol_sound_enabled",
   STREAKS_DATA: "xidol_streaks_daily_v3",
   CUSTOM_NAMES: "xidol_member_custom_names_v1",
-  ACTIVE_CHATS: "xidol_active_chats_v1"
+  ACTIVE_CHATS: "xidol_active_chats_v1",
+  MEMBER_STORIES: "xidol_member_stories_v2",
+  MY_STATUS: "xidol_my_status_v1"
 };
 
 const DEFAULT_PROFILE = {
@@ -329,6 +331,131 @@ export const Storage = {
       localStorage.setItem(STORAGE_KEYS.CUSTOM_NAMES, JSON.stringify(names));
     } catch (e) {
       console.error("Failed to reset custom name", e);
+    }
+  },
+
+  // Manual / Testing Streak Adjuster
+  setMemberStreak(memberId, count) {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.STREAKS_DATA);
+      const streaks = data ? JSON.parse(data) : {};
+      const num = Math.max(0, parseInt(count, 10) || 0);
+      streaks[memberId] = {
+        count: num,
+        lastDate: this._getTodayString()
+      };
+      localStorage.setItem(STORAGE_KEYS.STREAKS_DATA, JSON.stringify(streaks));
+      return {
+        streak: num,
+        hasFlame: num >= 3,
+        isPossessive: num >= 5,
+        isJealous: num >= 7
+      };
+    } catch (e) {
+      console.error("Failed to set member streak", e);
+      return { streak: 0, hasFlame: false, isPossessive: false, isJealous: false };
+    }
+  },
+
+  // Member Stories / Status System
+  getMemberStories() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.MEMBER_STORIES);
+      return data ? JSON.parse(data) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  saveMemberStories(stories) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.MEMBER_STORIES, JSON.stringify(stories));
+    } catch (e) {
+      console.error("Failed to save stories", e);
+    }
+  },
+
+  addMemberStory(memberId, photoUrl, caption, memberName = "", avatar = "") {
+    try {
+      let stories = this.getMemberStories() || [];
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      const timeAgo = `Hari ini ${timeStr}`;
+      const storyId = `story-${memberId}`;
+
+      let memberStory = stories.find(s => s.memberId === memberId);
+      const newPhoto = {
+        id: "p_" + Date.now(),
+        url: photoUrl,
+        imageUrl: photoUrl,
+        caption: caption || "Status terbaru ✨",
+        time: timeStr
+      };
+
+      if (memberStory) {
+        memberStory.timeAgo = timeAgo;
+        memberStory.timestamp = timeStr;
+        memberStory.time = timeStr;
+        memberStory.viewed = false;
+        memberStory.hasUnseen = true;
+        if (!memberStory.photos) memberStory.photos = [];
+        memberStory.photos.unshift(newPhoto);
+        memberStory.stories = memberStory.photos;
+        stories = [memberStory, ...stories.filter(s => s.memberId !== memberId)];
+      } else {
+        memberStory = {
+          id: storyId,
+          memberId: memberId,
+          memberName: memberName || memberId,
+          avatar: avatar || "",
+          timeAgo: timeAgo,
+          timestamp: timeStr,
+          time: timeStr,
+          viewed: false,
+          hasUnseen: true,
+          photos: [newPhoto],
+          stories: [newPhoto]
+        };
+        stories.unshift(memberStory);
+      }
+
+      this.saveMemberStories(stories);
+      return memberStory;
+    } catch (e) {
+      console.error("Failed to add member story", e);
+      return null;
+    }
+  },
+
+  markStoryViewed(storyId) {
+    try {
+      const stories = this.getMemberStories();
+      if (!stories) return;
+      const story = stories.find(s => s.id === storyId);
+      if (story) {
+        story.viewed = true;
+        story.hasUnseen = false;
+        this.saveMemberStories(stories);
+      }
+    } catch (e) {
+      console.error("Failed to mark story viewed", e);
+    }
+  },
+
+  getMyStatus() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.MY_STATUS);
+      return data ? JSON.parse(data) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  setMyStatus(statusData) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.MY_STATUS, JSON.stringify(statusData));
+    } catch (e) {
+      console.error("Failed to save my status", e);
     }
   }
 };

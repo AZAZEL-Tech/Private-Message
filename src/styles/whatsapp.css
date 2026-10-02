@@ -1048,6 +1048,134 @@
   text-transform: uppercase;
   color: var(--ios-text-secondary);
   margin: 16px 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.status-header-action-btn {
+  font-size: 12px;
+  color: var(--ios-blue);
+  background: rgba(0, 122, 255, 0.1);
+  border: none;
+  border-radius: 12px;
+  padding: 4px 10px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.status-header-action-btn:hover {
+  background: rgba(0, 122, 255, 0.2);
+}
+
+.status-item-card {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  cursor: pointer;
+  border-bottom: 0.5px solid var(--ios-separator);
+  transition: background-color 0.15s ease;
+}
+
+.status-item-card:hover {
+  background-color: var(--ios-item-hover);
+}
+
+.status-avatar-ring {
+  padding: 2.5px;
+  border-radius: 50%;
+  background: linear-gradient(45deg, #25D366, #3B82F6, #9333EA);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 14px;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.status-avatar-ring:hover {
+  transform: scale(1.05);
+}
+
+.status-avatar-ring.viewed {
+  background: #C7C7CC;
+}
+
+.status-member-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--ios-bg);
+  background-color: #E2E8F0;
+  display: block;
+}
+
+.status-info-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.status-member-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ios-text-primary);
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-timestamp {
+  font-size: 12.5px;
+  color: var(--ios-text-secondary);
+}
+
+.status-caption-preview {
+  font-size: 12px;
+  color: var(--ios-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+  opacity: 0.85;
+}
+
+/* Streak Pill Quick Selector */
+.streak-pill-container {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.streak-pill-btn {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--ios-separator);
+  background: var(--ios-item-hover);
+  color: var(--ios-text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.streak-pill-btn:hover {
+  background: var(--ios-blue);
+  color: #FFFFFF;
+  border-color: var(--ios-blue);
+}
+
+.streak-pill-btn.active {
+  background: linear-gradient(135deg, #FF6B4A, #FF3B30);
+  color: #FFFFFF;
+  border-color: transparent;
+  box-shadow: 0 2px 6px rgba(255, 59, 48, 0.3);
 }
 
 /* Fullscreen Story Viewer */

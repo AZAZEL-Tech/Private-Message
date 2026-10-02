@@ -200,7 +200,12 @@
             </div>
           </div>
 
-          <div class="status-section-header">Pembaruan Terkini Member</div>
+          <div class="status-section-header">
+            <span>Pembaruan Terkini Member</span>
+            <button class="status-header-action-btn" id="btn-request-member-story" title="Minta member membuat status baru">
+              ✨ Minta Buat Status
+            </button>
+          </div>
           <div id="updates-list-container"></div>
         </div>
       </div>
@@ -622,15 +627,26 @@
           <span class="info-detail-label">Tanggal Lahir</span>
           <span class="info-detail-value" id="info-modal-birth">13 Februari 2006</span>
         </div>
-        <div class="info-detail-row">
-          <span class="info-detail-label">Streak Chat</span>
-          <span class="info-detail-value" id="info-modal-streak">0 Hari (Butuh 3 hari berturut-turut untuk buka Api 🔥)</span>
+        <div class="info-detail-row" style="flex-direction: column; align-items: flex-start; gap: 6px;">
+          <span class="info-detail-label">Streak Chat & Tingkat Posesif</span>
+          <span class="info-detail-value" id="info-modal-streak">0 Hari</span>
+          <div class="streak-pill-container" id="info-modal-streak-pills">
+            <button class="streak-pill-btn" data-days="1">1 Hari (Normal)</button>
+            <button class="streak-pill-btn" data-days="3">3 Hari 🔥 (Manja)</button>
+            <button class="streak-pill-btn" data-days="5">5 Hari ⚡ (Posesif)</button>
+            <button class="streak-pill-btn" data-days="7">7 Hari ❤️‍🔥 (Cemburuan)</button>
+          </div>
+        </div>
+        <div class="info-detail-row" style="justify-content: center; padding-top: 10px;">
+          <button class="status-header-action-btn" id="btn-modal-create-member-story" style="font-size: 13px; padding: 7px 16px;">
+            📸 Buat Status Baru Untuk Member Ini
+          </button>
         </div>
       </div>
     </div>
   </div>
 
   <!-- JavaScript Modules -->
-  <script type="module" src="src/app.js?v=20260930_v5"></script>
+  <script type="module" src="src/app.js?v=20261002_v6"></script>
 </body>
 </html>
